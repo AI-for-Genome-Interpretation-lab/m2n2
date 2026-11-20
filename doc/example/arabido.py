@@ -10,7 +10,7 @@ import torch.nn as nn
 from matplotlib.colors import to_hex
 from meiosim import Arabidopsis
 from meiosim.Population import MISSING
-from m2n2 import MixedModelNN, ToyNN as NN
+from m2n2 import MixedModelNN, ToyNN
 
 pop = Arabidopsis(n_SNPs=10_000, seed=42)
 data = pop.phenotypes[["individual", "DTF1"]].merge(
@@ -68,18 +68,15 @@ save_cloud(pcs, inertia, "kinship")
 # M2N2
 
 class Network(nn.Module):
+    """ToyNN embedding of the accessions, rows in the order of z; rows is an optional boolean mask."""
+
     def __init__(self, z):
         super().__init__()
+        self.nn = ToyNN(z.shape[1])
         self.register_buffer("z", z)
-        self.body = nn.Sequential(
-            nn.Dropout(0.1),
-            nn.Linear(z.shape[1], 256), nn.BatchNorm1d(256), nn.GELU(), nn.Dropout(0.5),
-            nn.Linear(256, 128), nn.BatchNorm1d(128), nn.GELU(), nn.Dropout(0.5),
-            nn.Linear(128, 64),
-        )
 
     def forward(self, rows=None):
-        return self.body(self.z if rows is None else self.z[rows])
+        return self.nn.embed(self.z if rows is None else self.z[rows])
 
 torch.manual_seed(42)
 network = Network(z) # /!\ z and data must be perfectly aligned
@@ -149,7 +146,7 @@ for title, name in [
 labelled = data["DTF1"].notna().to_numpy()
 
 torch.manual_seed(42)
-nn_alone = NN(z.shape[1]).fit(
+nn_alone = ToyNN(z.shape[1]).fit(
     z[labelled],
     torch.tensor(data.loc[labelled, "DTF1"].to_numpy(), dtype=torch.float32),
     n_epoch=1000,
