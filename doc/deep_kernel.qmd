@@ -28,29 +28,52 @@ $$
 with $W$ the centered markers and $p_j$ the allele frequencies [@vanraden_efficient_2008].
 It represents the genetic relatedness between individuals.
 
+::: {#fig-kinship}
 <p align="center"><img src="img/kinship.png" width="500"></p>
+
+Genomic kinship $K$, accessions sorted by country.
+:::
 
 This structure can also be observed by a principal component analysis of the SNP matrix.
 
+::: {#fig-kinship-pca}
 <div class="cloud3d" data-src="widgets/kinship.json"></div>
+
+First three principal components of the genomic kinship $K$, accessions colored by country.
+:::
 
 ### Ridge regression
 
 The ridge regression on the markers, $y = \mathbf{1}\mu + Wa + r$ with $W$ the centered allele incidence and $a \sim N(0, \sigma^2_a I)$, is equivalent to the GBLUP on $K$.
 The weighted alleles $W \odot \hat a$ (with $\odot$ the Hadamard product) decompose the prediction: their row sum is the predicted breeding value.
 
+::: {#fig-ridge}
 <div class="cloud3d" data-src="widgets/ridge_weighted.json"></div>
+
+Principal components of the weighted alleles $W \odot \hat a$ of the ridge regression.
+:::
 
 Their principal components remain close to those of the kinship: the effects associated with the markers are estimated as infinitesimal, all small and of similar magnitude, so that they reweight the marker space almost uniformly, and the contrasts between individuals emerge from their sum.
 
 ## Neural network
 
-A network trained alone predicts $\hat y = e^\top w + b$, with $e$ its last layer.
-As $e$ and $w$ are not identified separately, its embeddings are $e \odot w$, whose row sums are $\hat y - b$.
+A network trained alone predicts $\hat y = e^\top w + b$, with $e$ the embeddings of its last layer.
 
-<div class="cloud3d" data-src="widgets/nn_weighted.json"></div>
+::: {#fig-nn-embedding}
+<div class="cloud3d" data-src="widgets/nn_embedding.json"></div>
+
+Principal components of the embeddings $e$ of the network trained alone.
+:::
 
 Entirely built for the prediction, their space collapses to a single dimension, parallel to $\hat y$.
+The same pattern is observed for $e \odot w$, whose row sums are $\hat y - b$.
+
+::: {#fig-nn-weighted}
+<div class="cloud3d" data-src="widgets/nn_weighted.json"></div>
+
+Principal components of the weighted embeddings $e \odot w$ of the network trained alone.
+:::
+
 
 ## Mixed model with a neural network
 
@@ -59,7 +82,11 @@ The mixed model reads it as a covariance, $\sigma^2_G Z_G Z_G^\top$, and sorts t
 
 ### Embeddings
 
+::: {#fig-m2n2-embedding}
 <div class="cloud3d" data-src="widgets/m2n2_embedding.json"></div>
+
+Principal components of the [m2n2]{.m2n2} embeddings $Z_G$.
+:::
 
 Though the 3D view cannot display it fully, the spherical normalization shows, and structures the embedding space.
 
@@ -71,21 +98,33 @@ $$
 
 It is a proximity not in the genome, but in the learnt embeddings.
 
+::: {#fig-m2n2-kinship}
 <p align="center"><img src="img/m2n2_kinship.png" width="500"></p>
+
+Embedding kinship $K_Z$, accessions sorted by country.
+:::
 
 ### General weighted embeddings
 
 $Z_G \odot \hat u_G$, whose row sums are the general part of the predicted value.
 
+::: {#fig-m2n2-general}
 <div class="cloud3d" data-src="widgets/m2n2_general.json"></div>
 
-Just like the infinitesimal effects of the ridge regression barely alter the marker space, the general embedding effects barely alter the embedding space: both views are very close.
+Principal components of the general weighted embeddings $Z_G \odot \hat u_G$.
+:::
+
+Just like the infinitesimal effects of the ridge regression barely alter the marker space, the general embedding effects is reminescent to the embedding space: both views are close.
 
 ### Specific weighted embeddings
 
 $Z_G \odot \hat u_{S,k(i)}$, with $k(i)$ the group of individual $i$, whose row sums are the specific part of the predicted genetic value.
 
+::: {#fig-m2n2-specific}
 <div class="cloud3d" data-src="widgets/m2n2_specific.json"></div>
+
+Principal components of the specific weighted embeddings $Z_G \odot \hat u_{S,k(i)}$.
+:::
 
 As opposed to the general part, the specific part differs strongly between groups, which are unequally shrunk.
 Poorly represented groups are shrunk to 0, while well represented ones receive their own specific embedding effects, accounted for and isolated from the general ones.
@@ -93,7 +132,7 @@ Poorly represented groups are shrunk to 0, while well represented ones receive t
 ### Observations
 
 In this example, the embedding space is mostly shaped by the general part, which only slightly reweights it, but it already "prepares" the specific split: on the sphere, the large groups lie as adjacent sectors, like slices of a melon, that the specific effects pull apart along their own directions.
-In the embedding space, the slices still overlap: individuals from different groups share common regions, across which the general effects can be estimated.
+The slices still overlap, especially on the first principal component of the embedding space: individuals from different groups are spread over a common range, across which the general effects can be estimated.
 
 From a biological point of view, the specific effects represent a $G \times G$ (genotype-by-genotype interaction, or epistasis) component, one $G$ being the genetic specificity of the group, and the other $G$ the whole genetic background. This component is difficult to interpret, and its subtraction aims at improving the model generalisability.
 

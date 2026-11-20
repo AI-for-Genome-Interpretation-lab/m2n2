@@ -94,7 +94,7 @@ model = MixedModelNN.from_dataframe(
 model.fit(
     n_epoch=1000,
     batch_size=256,
-    validation=0.5,
+    validation=0.2,
     patience=50,
     verbose=False,
 )
@@ -114,6 +114,14 @@ model.plot()
 
 model.varcomp()
 ```
+
+## Documentation
+
+The documentation is available at [this address](https://ai-for-genome-interpretation-lab.github.io/m2n2).
+
+## Code
+
+The code is available at [this address](https://github.com/ai-for-genome-interpretation-lab/m2n2).
 
 ## License
 
