@@ -52,7 +52,9 @@ jobs:
           twine check dist/*
 
       - uses: pypa/gh-action-pypi-publish@release/v1
-
+        with:
+          skip-existing: true
+          
       - uses: quarto-dev/quarto-actions/setup@v2
 
       - name: Configure git
