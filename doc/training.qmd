@@ -25,11 +25,13 @@ model.fit(
 | `patience`   | Epochs without improvement of the validation score before stopping. Defaults to 50, `None` never stops. |
 | `verbose`    | Prints the loss and the score at each epoch.                                                   |
 
-The pipeline:
+The pipeline, at each epoch:
 
-1. REML descent of $\theta$, $\beta$ and the variances, on [minibatches](#minibatches) (see [Loss function](#loss-function)).
-2. [Validation](#validation-and-early-stopping) at each epoch, early stopping and restoration of the best state.
-3. [Polish](#polish): REML and HMME with the network frozen.
+1. Gradient descent of $\theta$, $\beta$ and the variances, on [minibatches](#minibatches).
+2. [Validation](#validation-and-early-stopping) and early stopping.
+3. [L-BFGS step](#l-bfgs-step): $\beta$ and the variances recalibrated on the training rows, the network frozen.
+
+Once the training stops, the best state is restored and [polished](#polish): REML and HMME with the network frozen.
 
 ## Loss function
 
@@ -66,6 +68,13 @@ The loss is computed by [pyreml]{.pyreml}, on the [SMW](https://ai-for-genome-in
 The gradient flows by autograd through the variances, $\beta$ and the network, and is applied by `optimizer`, AdamW [@loshchilov_decoupled_2019] by default.
 
 `model.loss` records the mean minibatch loss of each epoch. It scales with $n_B$: curves are comparable at fixed `batch_size` only.
+
+### L-BFGS step
+
+The minibatch descent moves $\beta$ and the variances by small, noisy steps.
+At the end of each epoch, they are recalibrated by a single L-BFGS step of [pyreml]{.pyreml} (up to 20 iterations, strong-Wolfe line search) on the full REML of the training rows, the network frozen in `eval()` mode.
+The held-out rows are left out, so that the validation score stays unbiased.
+As the network changes from one epoch to the next, the L-BFGS history is reset before each step; a single step needs no convergence criterion.
 
 ## Validation and early stopping
 
