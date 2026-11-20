@@ -176,6 +176,7 @@ with torch.no_grad():
     nn_prediction = nn_alone.head(nn_embedding)  # missing DTF1 included
     nn_weighted = nn_embedding * nn_alone.head[0].weight.flatten()  # row sums + bias = prediction
 
+save_cloud(*pca(nn_embedding), "nn_embedding")
 save_cloud(*pca(nn_weighted), "nn_weighted")
 
 # %%
