@@ -21,6 +21,8 @@ website:
         text: Training models
       - href: deep_kernel.qmd
         text: Deep kernel
+      - href: contact.qmd
+        text: Contact
       - href: license.qmd
         text: License
 

@@ -126,6 +126,10 @@ model.varcomp()
 - [Training models](training.qmd)
 - [Deep kernel](deep_kernel.qmd)
 
+## Code
+
+The code is available at [this address](https://github.com/ai-for-genome-interpretation-lab/m2n2).
+
 ## License
 
 [m2n2]{.m2n2} is distributed with a [GPL-3.0](license.qmd) license.

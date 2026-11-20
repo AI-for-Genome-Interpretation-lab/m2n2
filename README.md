@@ -115,6 +115,14 @@ model.plot()
 model.varcomp()
 ```
 
+## Documentation
+
+The documentation is available at [this address](https://ai-for-genome-interpretation-lab.github.io/m2n2).
+
+## Code
+
+The code is available at [this address](https://github.com/ai-for-genome-interpretation-lab/m2n2).
+
 ## License
 
 Copyright © 2026 CNRS, University of Montpellier
