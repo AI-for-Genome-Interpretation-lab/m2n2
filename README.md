@@ -1,5 +1,5 @@
 <h1 align="center">
-<img width="750" alt="m2n2" src="https://github.com/AI-for-Genome-Interpretation-lab/m2n2/blob/develop/doc/img/banner.png" />
+<img width="750" alt="m2n2" src="https://raw.githubusercontent.com/AI-for-Genome-Interpretation-lab/m2n2/main/doc/img/banner.png" />
 </h1>
 
 <p>
