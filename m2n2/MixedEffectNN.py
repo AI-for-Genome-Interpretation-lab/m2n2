@@ -216,19 +216,6 @@ class MixedModelNN(MixedModel):
                         [p.detach().clone() for p in self.params],
                     )
 
-            # one REML step on the training rows, network frozen: beta and variances recalibrated
-            t = train.sort().values
-            rows = torch.zeros_like(self.keep)
-            rows[labelled[t]] = True
-            self.network.eval()
-            with torch.no_grad():
-                self._Z = self.embed(rows)
-            self._y, self._X, self.n = y[t], X[t], len(t)
-            self.opti_REML.set_lbfgs()
-            self.REML(n_epoch=1)
-            self._y, self._X, self.n = y, X, n
-
-
             if verbose:
                 print(message)
             if n_valid and patience is not None and epoch - best_epoch >= patience:
