@@ -1,0 +1,28 @@
+{
+  "title": "m2n2 - mixed modeling with neural networks",
+  "description": "m2n2 fits a linear mixed model based on a neural network. The network is trained jointly with the fixed effects and the variance components on the REML loss.",
+  "upload_type": "software",
+  "language": "eng",
+  "creators": [
+    {
+      "name": "Marchal, Alexandre",
+      "orcid": "0000-0002-2865-9865",
+      "affiliation": "IGMM - CNRS"
+    },
+    {
+      "name": "Raimondi, Daniele",
+      "orcid": "0000-0003-1157-1899",
+      "affiliation": "IGMM - CNRS"
+    }
+  ],
+  "keywords": [
+    "mixed models",
+    "neural networks",
+    "deep kernel",
+    "REML",
+    "genomics",
+    "embedding"
+  ],
+  "license": "GPL-3.0-or-later",
+  "access_right": "open"
+}
