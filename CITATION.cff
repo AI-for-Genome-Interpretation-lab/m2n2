@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+title: "m2n2: mixed modeling with neural networks"
+abstract: >
+  m2n2 fits a linear mixed model based on a neural network. The network
+  is trained jointly with the fixed effects and the variance components on the REML loss.
+type: software
+authors:
+  - family-names: "Marchal"
+    given-names: "Alexandre"
+    orcid: "https://orcid.org/0000-0002-2865-9865"
+    affiliation: "IGMM - CNRS"
+  - family-names: "Raimondi"
+    given-names: "Daniele"
+    orcid: "https://orcid.org/0000-0003-1157-1899"
+    affiliation: "IGMM - CNRS"
+license: "GPL-3.0-or-later"
+repository-code: "https://github.com/ai-for-genome-interpretation-lab/m2n2"
+url: "https://github.com/ai-for-genome-interpretation-lab/m2n2"
+keywords:
+  - "mixed models"
+  - "neural networks"
+  - "deep kernel"
+  - "REML"
+  - "genomics"
+  - "embedding"

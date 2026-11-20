@@ -1,0 +1,98 @@
+---
+title: "Building models"
+---
+
+[m2n2]{.m2n2} builds a model with `MixedModelNN.from_dataframe()`, from a [pandas](https://pandas.pydata.org/) DataFrame and a [PyTorch](https://pytorch.org/) network.
+
+## The from_dataframe constructor
+
+```python
+model = MixedModelNN.from_dataframe(
+    data        = data,
+    response    = "DTF1",
+    Z           = network,
+    specificity = "country",
+    fixed       = "1",
+    optimizer   = partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1),
+    lr_beta     = 1e-2,
+    lr_var      = 1e-2,
+)
+
+model.fit()
+```
+
+| Argument      | Meaning                                                                                       |
+|---------------|-----------------------------------------------------------------------------------------------|
+| `data`        | One row per individual.                                                                        |
+| `response`    | One response column.                                                                           |
+| `Z`           | The network $\nu$, an `nn.Module` returning the embeddings (see [the network](#the-network)). |
+| `specificity` | Qualitative column defining the $q$ groups of $Z_S$. Defaults to `None`: no group-specific effect. |
+| `fixed`       | A [patsy](https://pypi.org/project/patsy/) formula for $X$. Defaults to the intercept `"1"`.  |
+| `optimizer`   | A `torch.optim` optimizer, LBFGS excepted, as a factory of the parameter groups. Defaults to `partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)`. |
+| `lr_beta`     | Learning rate of $\beta$. Defaults to the optimizer's.                                        |
+| `lr_var`      | Learning rate of the variances. Defaults to the optimizer's.                                  |
+
+## The network
+
+The network is user-defined, under the following contract:
+
+- `Z()` returns the $n \times d$ embedding of every row of `data`, in the same order. Aligning the two is the user's responsibility: only the number of rows is checked.
+- `Z(rows)`, with `rows` a boolean mask over the rows of `data`, returns the embeddings of the selected rows only. Training feeds the labelled rows of each minibatch alone, so that batch statistics (*e.g.* BatchNorm) never see the others.
+- The model runs in the dtype and on the device of the output of `Z()`.
+
+The features $z$ are typically stored in the network as a buffer:
+
+```python
+class Network(nn.Module):
+    def __init__(self, z):
+        super().__init__()
+        self.register_buffer("z", z)
+        self.body = nn.Sequential(...)
+
+    def forward(self, rows=None):
+        return self.body(self.z if rows is None else self.z[rows])
+```
+
+The embeddings are projected on the unit sphere before entering the mixed model (see [Deep kernel](deep_kernel.qmd)).
+Dropout and BatchNorm belong to the network: [m2n2]{.m2n2} switches it to `train()` mode for the gradient steps, and to `eval()` mode for validation and prediction.
+
+## Data layout and missing values
+
+- A row missing the response is left out of the fit, but still predicted.
+- A row missing a fixed covariate is left out of the fit.
+- `specificity` must be qualitative and complete: numeric codes are to be cast to `str`.
+
+The random design $[Z_G \mid Z_S]$ has $d(1 + q)$ columns, $d$ without `specificity`.
+
+## Initialization
+
+The variances $\sigma^2_G$, $\sigma^2_S$ and $\sigma^2_R$ are log-parameterized and initialized at the variance of the response.
+$\beta$ is initialized by ordinary least squares on the labelled rows.
+
+`optimizer` is called on four parameter groups:
+
+| Group                                  | Parameters                   | Weight decay | Learning rate |
+|----------------------------------------|------------------------------|--------------|---------------|
+| Network weights                        | Tensors of dimension $\geq 2$ | `optimizer`  | `optimizer`   |
+| Network biases, normalization parameters | Vectors                    | 0            | `optimizer`   |
+| Fixed effects                          | $\beta$                      | 0            | `lr_beta`     |
+| Variances                              | $\log \sigma^2$              | 0            | `lr_var`      |
+
+## The fitted model
+
+After `.fit()` (see [Training models](training.qmd)):
+
+| Accessor                       | Content                                                                 |
+|--------------------------------|-------------------------------------------------------------------------|
+| `model.prediction`             | $Z_G \hat u_G + Z_S \hat u_S$ for every row of `data`, missing responses included. Fixed effects excluded. |
+| `model.estimates`              | Fixed-effect estimates (BLUE) as a long table `response · term · estimate · SE · t`. |
+| `model.uhat_general`           | $\hat u_G$, of shape `(d,)`.                                                     |
+| `model.uhat_specific`          | $\hat u_S$, of shape `(q, d)`, one row per level of `model.levels`.             |
+| `model.PEV`                    | Prediction error variance of $[\hat u_G, \hat u_S]$.                             |
+| `model.residuals`              | Residuals of the labelled rows.                                                  |
+| `model.varcomp()`              | Raw and unit variances (see [Deep kernel](deep_kernel.qmd)).                     |
+| `model.AIC`                    | Akaike information criterion, post REML.                                         |
+| `model.loss`, `model.score`    | Training curves (see [Monitoring](training.qmd#monitoring)).                |
+| `model.pca`                    | PCA of the raw and weighted embeddings: `coords`, `inertia`, `eigvec` per embedding. |
+| `model.plot(plan=(0, 1))`      | Individual projections on the principal plan `plan`, colored by group.        |
+
