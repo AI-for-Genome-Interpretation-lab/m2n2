@@ -93,7 +93,7 @@ Poorly represented groups are shrunk to 0, while well represented ones receive t
 ### Observations
 
 In this example, the embedding space is mostly shaped by the general part, which only slightly reweights it, but it already "prepares" the specific split: on the sphere, the large groups lie as adjacent sectors, like slices of a melon, that the specific effects pull apart along their own directions.
-In the embedding space, the slices still overlap: individuals from different groups share common regions, across which the general effects can be estimated.
+The slices still overlap, especially on the first principal component of the embedding space: individuals from different groups are spread over a common range, across which the general effects can be estimated.
 
 From a biological point of view, the specific effects represent a $G \times G$ (genotype-by-genotype interaction, or epistasis) component, one $G$ being the genetic specificity of the group, and the other $G$ the whole genetic background. This component is difficult to interpret, and its subtraction aims at improving the model generalisability.
 

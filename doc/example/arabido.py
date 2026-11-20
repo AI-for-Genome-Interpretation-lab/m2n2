@@ -101,7 +101,7 @@ model = MixedModelNN.from_dataframe(
 model.fit(
     n_epoch=1000,
     batch_size=256,
-    validation=0.5,
+    validation=0.2,
     patience=50,
     verbose=False,
 )
@@ -115,7 +115,6 @@ ax_score.plot(model.score)
 ax_score.axvline(np.argmin(model.score), color="grey", linestyle="--")
 ax_score.set_xlabel("epoch")
 ax_score.set_ylabel("validation MSE")
-fig.suptitle(f"REML polish converged: {model.opti_REML.converged}")
 plt.tight_layout()
 fig.savefig("../img/m2n2_training.png", dpi=150, bbox_inches="tight")
 plt.close(fig)
@@ -155,7 +154,7 @@ nn_alone = NN(z.shape[1]).fit(
     torch.tensor(data.loc[labelled, "DTF1"].to_numpy(), dtype=torch.float32),
     n_epoch=1000,
     batch_size=256,
-    validation=0.5,
+    validation=0.2,
     patience=50,
     verbose=False,
 )
