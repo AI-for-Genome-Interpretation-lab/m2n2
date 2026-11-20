@@ -23,6 +23,12 @@ authors = [
 license = "GPL-3.0-or-later"
 description = "Mixed effect neural networks: REML linear mixed model with a neural network embedding as random design."
 
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "meiosim",
+]
+
 [tool.setuptools.dynamic]
 version = {attr = "m2n2._version.__version__"}
 
