@@ -112,7 +112,7 @@ Both run in the dtype of the network output.
 
 ### Training curves
 
-Typical training behavior:
+Training behavior on a small example:
 
 <p align="center"><img src="img/m2n2_training.png" width="700"></p>
 
