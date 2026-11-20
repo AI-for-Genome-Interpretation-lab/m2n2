@@ -35,14 +35,16 @@ y = X\beta + Z_G u_G + Z_S u_S + r
 z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d
 $$
 
-- $X$: fixed effects design matrix, provided from a `patsy` formula.
-- $\beta$: fixed effects.
-- $z_i$: features of individual $i$ (e.g. SNPs).
-- $Z_G = \nu(z, \theta)$: general design matrix, embedding of the features by the network of dimension $n \times d$.
-- $Z_S = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta)$: specific design matrix of dimension $n \times qd$ for the $q$ groups.
-- $u_G \sim N(0, \sigma^2_G I), u_G \in \mathbb{R}^d$: general embedding effects.
-- $u_S \sim N(0, \sigma^2_S I), u_{S} \in \mathbb{R}^{qd}$: group-specific embedding effects (optional).
-- $r \sim N(0, \sigma^2_R I)$: residual.
+- $y$: the quantitative label, for instance a phenotype.
+- $X$: the fixed effects design matrix, provided from a `patsy` formula.
+- $\beta$: the fixed effects.
+- $z_i$: the features of individual $i$, for instance its SNPs.
+- $Z_G = \nu(z, \theta)$: the general design matrix, embedding of the features by the network of dimension $n \times d.$
+- $u_G \sim N(0, \sigma^2_G I), u_G \in \mathbb{R}^d$: the general embedding effects.
+- $0$, or one, or several specificities, all defined with:
+    - $Z_S = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta)$: a specific design matrix of dimension $n \times qd$ for the $q$ groups.
+    - $u_S \sim N(0, \sigma^2_S I), u_{S} \in \mathbb{R}^{qd}$: a group-specific embedding effects.
+- $r \sim N(0, \sigma^2_R I)$: the residual.
 
 ## Example
 
