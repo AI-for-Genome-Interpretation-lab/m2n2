@@ -30,19 +30,22 @@ pip install m2n2
 [m2n2]{.m2n2} fits a linear mixed model built upon the neural network $\nu$ of parameters $\theta$:
 
 $$
-y = X\beta + Z_G u_G + Z_S u_S + r
+y = X\beta + Zu + r
 \qquad
 z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d
 $$
 
-- $X$: fixed effects design matrix, provided from a `patsy` formula.
-- $\beta$: fixed effects.
-- $z_i$: features of individual $i$ (e.g. SNPs).
-- $Z_G = \nu(z, \theta)$: general design matrix, embedding of the features by the network of dimension $n \times d$.
-- $Z_S = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta)$: specific design matrix of dimension $n \times qd$ for the $q$ groups.
-- $u_G \sim N(0, \sigma^2_G I), u_G \in \mathbb{R}^d$: general embedding effects.
-- $u_S \sim N(0, \sigma^2_S I), u_{S} \in \mathbb{R}^{qd}$: group-specific embedding effects (optional).
-- $r \sim N(0, \sigma^2_R I)$: residual.
+- $y$: a quantitative continuous label.
+- $X$: the fixed effects design matrix, provided from a `patsy` formula.
+- $\beta$: the fixed effects.
+- $z_i$: features of individual $i$.
+- $Z = \bigoplus_{k=1}^{q} \nu(z_{(k), \theta}), Z \in \mathbb{R}^{n \times d}$, the random effects design matrix, or matrice of embeddings, for all $n$ individuals from $q$ distinct groups.
+- $u \sim N(0, \sigma^2_G I), u \in \mathbb{R}^{qd}$: the embedding effects, with an embedding effect vector $u_k$ for each of the $q$ groups.
+- $r \sim N(0, \sigma^2_R I)$: the residual.
+
+Several random effects based on neural networks can be provided, either referring to the same neural network, the same features, or not.
+
+Additional random effects following [pyreml]{.pyreml} specification system can also be provided.
 
 ## Example
 
