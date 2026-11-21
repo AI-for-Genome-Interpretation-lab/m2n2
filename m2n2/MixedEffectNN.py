@@ -3,6 +3,7 @@ import copy
 import numpy as np
 import pandas as pd
 import patsy
+import scipy.linalg
 import torch
 import torch.nn.functional as F
 
@@ -188,11 +189,16 @@ class MixedModelNN(MixedModel):
                 if len(b) < size:
                     continue
                 b = b.sort().values
-                # fixed effects absent from the batch (empty columns of X_b) are left out: their
-                # X'V^-1 X would be singular. Indexing beta keeps the gradient on the full parameter
-                cols = X[b].any(dim=0)
+                # X_b loses rank when a level is absent from the batch (an empty column, or the reference
+                # level of a qualitative effect, the intercept being then the sum of the present dummies):
+                # its X'V^-1 X is singular. A basis of its columns is kept, by pivoted QR. Indexing beta
+                # keeps the gradient on the full parameter
+                R, piv = scipy.linalg.qr(X[b].cpu().numpy(), mode="r", pivoting=True)
+                d = np.abs(np.diag(R))
+                rank = int((d > d[0] * max(R.shape) * np.finfo(R.dtype).eps).sum())
+                cols = torch.as_tensor(np.sort(piv[:rank]), device=X.device)
                 self._y, self._X, self.n, self.w_grid = y[b], X[b][:, cols], len(b), w_grid[b]
-                self.beta, self.p = beta_full[cols], int(cols.sum())
+                self.beta, self.p = beta_full[cols], rank
                 self._Z = self.design(b)
                 for optimizer in self.optimizers:
                     optimizer.zero_grad()

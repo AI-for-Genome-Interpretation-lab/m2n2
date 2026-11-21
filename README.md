@@ -1,5 +1,7 @@
 <h1 align="center">
+<a href="https://ai-for-genome-interpretation-lab.github.io/m2n2">
 <img width="750" alt="m2n2" src="https://raw.githubusercontent.com/AI-for-Genome-Interpretation-lab/m2n2/main/doc/img/banner.png" />
+</a>
 </h1>
 
 <p>

@@ -62,6 +62,8 @@ The random effects $u_j$ do not enter the loss: they are predicted afterwards by
 
 At each epoch, the labelled training rows are shuffled and split into minibatches of `batch_size` rows, the incomplete last batch dropped.
 As the embeddings are computed row-wise, the covariance of a minibatch $B$ is the submatrix $V_B$ of $V$, and $y_B \sim N(X_B\beta, V_B)$ exactly: the loss of a minibatch is the REML of the corresponding sub-model.
+When a level is absent from the minibatch, $X_B$ loses rank, *e.g.* an empty column, or the reference level of a qualitative effect, the intercept being then the sum of the present dummies.
+The REML of the sub-model is then computed on a basis of the columns of $X_B$, selected by pivoted QR: the fixed effects it cannot estimate are left out of this minibatch.
 The observations are not independent: they share the $u_j$, and $V$ is not diagonal.
 The minibatch losses therefore do not add up to the full REML: minibatch descent is a stochastic approximation of it, which performs well empirically [@simchoni_integrating_2023].
 
