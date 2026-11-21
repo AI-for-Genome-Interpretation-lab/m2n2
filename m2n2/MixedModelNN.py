@@ -22,8 +22,8 @@ class MixedModelNN(MixedModel):
     the residual, and, if full, fits them to initialize beta and their variances. It is then rebuilt
     by the low-level constructor, with varmeth and varmeth_inv stacking every term, in the order of
     `random`. Rows with a missing response are left out of the fit, but the RandomNN terms still
-    predict them. The mixed model runs in double, on the device of the networks output: in float32,
-    the REML term log|X'V^-1 X| of a minibatch is too ill-conditioned. The networks keep their dtype.
+    predict them. The mixed model runs in double, on the device of the networks output; the networks
+    keep their own dtype.
     """
 
     @classmethod
