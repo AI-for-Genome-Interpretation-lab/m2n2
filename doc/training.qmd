@@ -29,7 +29,7 @@ The pipeline:
 
 1. REML descent of the network parameters, $\beta$ and the variances, on [minibatches](#minibatches) (see [Loss function](#loss-function)).
 2. [Validation](#validation-and-early-stopping) at each epoch, early stopping and restoration of the best state.
-3. [Polish](#polish): REML and HMME with the network frozen.
+3. [Polish](#polish): REML and HMME with the networks frozen, HMME only with `full = False`.
 
 ## Loss function
 
@@ -104,6 +104,7 @@ The model is then a linear mixed model with a known random design, refitted by [
 - [HMME](https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#hmme) gives the BLUE of $\beta$, the BLUP of every $u_j$, and their error variances.
 
 Both run in the dtype of the networks output.
+With `full = False` (see [Building models](build.qmd#the-from_dataframe-constructor)), the REML is skipped: HMME runs on the variances at the end of training (restored state with `validation`).
 
 ## Monitoring
 
@@ -114,6 +115,8 @@ Both run in the dtype of the networks output.
 | `model.opti_REML.loss`      | REML loss at each iteration of the polish.                 |
 | `model.opti_REML.converged` | Whether the polish met the convergence criterion.          |
 | `model.opti_REML.duration`  | Wall-clock time of the polish, in seconds.                 |
+
+The `opti_REML` accessors are not set with `full = False`.
 
 ### Training curves
 

@@ -48,6 +48,7 @@ model.fit()
 | `residual`  | The residual, a [pyreml]{.pyreml} `Residual`. Defaults to `Residual()`: $\sigma^2_R I$.       |
 | `lr_beta`   | Learning rate of $\beta$. Defaults to 1e-3.                                                    |
 | `lr_var`    | Learning rate of the variances. Defaults to 1e-3.                                              |
+| `full`      | Runs the [pyreml]{.pyreml} [initialization](#initialization) and the REML of the [polish](training.qmd#polish). Defaults to `True`; `False` skips both, for datasets too large for them. |
 
 ## Embeddings
 
@@ -134,8 +135,11 @@ The random design $[Z_1 \mid Z_2 \mid \dots]$ has $\sum_j q_j d_j$ columns over 
 
 ## Initialization
 
-The variances are log-parameterized; those of the `RandomNN` terms and of the residual are initialized at the variance of the response.
-$\beta$ is initialized by ordinary least squares on the labelled rows.
+The model is first fitted by [pyreml]{.pyreml} without the `RandomNN` terms, on the labelled rows: it initializes $\beta$, and the variances of the `Random` terms and of the residual.
+The variances of the `RandomNN` terms are then initialized at the variance of the response.
+All variances are log-parameterized.
+
+With `full = False`, this first fit is skipped: $\beta$ is initialized by ordinary least squares on the labelled rows, and the variances of the `Random` terms and of the residual at their [pyreml]{.pyreml} initial values.
 
 The optimizer of each embedding is called on two parameter groups, and $\beta$ and the variances are stepped by Adam:
 
@@ -152,7 +156,6 @@ After `.fit()` (see [Training models](training.qmd)):
 
 | Accessor                       | Content                                                                 |
 |--------------------------------|-------------------------------------------------------------------------|
-| `model.prediction`             | $\sum_j Z_j \hat u_j$ for every row of `data`, missing responses included. Fixed effects excluded. |
 | `model.estimates`              | Fixed-effect estimates (BLUE) as a long table `response · term · estimate · SE · t`. |
 | `model.PEV`                    | Prediction error variance of $[\hat u_1, \hat u_2, \dots]$.                      |
 | `model.residuals`              | Residuals of the labelled rows.                                                  |
@@ -164,7 +167,7 @@ Each `RandomNN` term exposes:
 
 | Accessor                       | Content                                                                 |
 |--------------------------------|-------------------------------------------------------------------------|
-| `.prediction`                  | $Z_j \hat u_j$ for every row of `data`.                                          |
+| `.prediction`                  | $Z_j \hat u_j$ for every row of `data`, missing responses included.             |
 | `.uhat`                        | $\hat u_j$, of shape `(q_j, d)`, one row per level of `.levels`.                 |
 | `.levels`                      | The levels of `group`, `[None]` without it.                                      |
 | `.pca`                         | PCA of the `"Raw embeddings"` $Z$ and of the `"Weighted embeddings"` $Z \odot \hat u_{j,k(i)}$, with $k(i)$ the group of individual $i$: `coords`, `inertia`, `eigvec` per embedding. |
