@@ -82,7 +82,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-447e42e69aaa9833c0ba1b986f430b20.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-eee0d47ffbbb6b0172a98e7cc31c05ca.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-293520738ce947f8998387a330a50f79.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -198,7 +198,12 @@ window.Quarto = {
    
   <ul>
   <li><a href="#the-from_dataframe-constructor" id="toc-the-from_dataframe-constructor" class="nav-link active" data-scroll-target="#the-from_dataframe-constructor">The from_dataframe constructor</a></li>
+  <li><a href="#embeddings" id="toc-embeddings" class="nav-link" data-scroll-target="#embeddings">Embeddings</a>
+  <ul class="collapse">
   <li><a href="#the-network" id="toc-the-network" class="nav-link" data-scroll-target="#the-network">The network</a></li>
+  </ul></li>
+  <li><a href="#neural-random-effects" id="toc-neural-random-effects" class="nav-link" data-scroll-target="#neural-random-effects">Neural random effects</a></li>
+  <li><a href="#other-random-effects" id="toc-other-random-effects" class="nav-link" data-scroll-target="#other-random-effects">Other random effects</a></li>
   <li><a href="#data-layout-and-missing-values" id="toc-data-layout-and-missing-values" class="nav-link" data-scroll-target="#data-layout-and-missing-values">Data layout and missing values</a></li>
   <li><a href="#initialization" id="toc-initialization" class="nav-link" data-scroll-target="#initialization">Initialization</a></li>
   <li><a href="#the-fitted-model" id="toc-the-fitted-model" class="nav-link" data-scroll-target="#the-fitted-model">The fitted model</a></li>
@@ -227,21 +232,38 @@ window.Quarto = {
 </header>
 
 
-<p><span class="m2n2">m2n2</span> builds a model with <code>MixedModelNN.from_dataframe()</code>, from a <a href="https://pandas.pydata.org/">pandas</a> DataFrame and a <a href="https://pytorch.org/">PyTorch</a> network.</p>
+<p><span class="m2n2">m2n2</span> builds a model with <code>MixedModelNN.from_dataframe()</code>, from a <a href="https://pandas.pydata.org/">pandas</a> DataFrame and one or several <a href="https://pytorch.org/">PyTorch</a> networks.</p>
 <section id="the-from_dataframe-constructor" class="level2">
 <h2 class="anchored" data-anchor-id="the-from_dataframe-constructor">The from_dataframe constructor</h2>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> MixedModelNN.from_dataframe(</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    data        <span class="op">=</span> data,</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    response    <span class="op">=</span> <span class="st">"DTF1"</span>,</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    Z           <span class="op">=</span> network,</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    specificity <span class="op">=</span> <span class="st">"country"</span>,</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    fixed       <span class="op">=</span> <span class="st">"1"</span>,</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    optimizer   <span class="op">=</span> partial(torch.optim.AdamW, lr<span class="op">=</span><span class="fl">1e-3</span>, weight_decay<span class="op">=</span><span class="fl">1e-1</span>),</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    lr_beta     <span class="op">=</span> <span class="fl">1e-2</span>,</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    lr_var      <span class="op">=</span> <span class="fl">1e-2</span>,</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>model.fit()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    data      <span class="op">=</span> data,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    response  <span class="op">=</span> <span class="st">"DTF1"</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    fixed     <span class="op">=</span> <span class="st">"1 + country"</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    embedding <span class="op">=</span> {</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"geno"</span>: Embedding(</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>            network,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            optimizer <span class="op">=</span> partial(</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>                torch.optim.AdamW,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>                lr <span class="op">=</span> <span class="fl">1e-3</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>                weight_decay <span class="op">=</span> <span class="fl">1e-1</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    },</span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>    random <span class="op">=</span> [</span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        RandomNN(</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>            embedding <span class="op">=</span> <span class="st">"geno"</span></span>
+<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a>        RandomNN(</span>
+<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a>            embedding <span class="op">=</span> <span class="st">"geno"</span>,</span>
+<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>            group <span class="op">=</span> <span class="st">"country"</span></span>
+<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>    residual  <span class="op">=</span> Residual(),</span>
+<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>    lr_beta   <span class="op">=</span> <span class="fl">1e-2</span>,</span>
+<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>    lr_var    <span class="op">=</span> <span class="fl">1e-2</span>,</span>
+<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>model.fit()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -259,75 +281,150 @@ window.Quarto = {
 <td>One response column.</td>
 </tr>
 <tr class="odd">
-<td><code>Z</code></td>
-<td>The network <span class="math inline">\(\nu\)</span>, an <code>nn.Module</code> returning the embeddings (see <a href="#the-network">the network</a>).</td>
-</tr>
-<tr class="even">
-<td><code>specificity</code></td>
-<td>Qualitative column defining the <span class="math inline">\(q\)</span> groups of <span class="math inline">\(Z_S\)</span>. Defaults to <code>None</code>: no group-specific effect.</td>
-</tr>
-<tr class="odd">
 <td><code>fixed</code></td>
 <td>A <a href="https://pypi.org/project/patsy/">patsy</a> formula for <span class="math inline">\(X\)</span>. Defaults to the intercept <code>"1"</code>.</td>
+</tr>
+<tr class="even">
+<td><code>embedding</code></td>
+<td>The networks, as a dictionary of named <a href="#embeddings"><code>Embedding</code></a>.</td>
+</tr>
+<tr class="odd">
+<td><code>random</code></td>
+<td>The random effects, a list of <a href="#neural-random-effects"><code>RandomNN</code></a> and <span class="pyreml">pyreml</span> <a href="#other-random-effects"><code>Random</code></a> terms.</td>
+</tr>
+<tr class="even">
+<td><code>residual</code></td>
+<td>The residual, a <span class="pyreml">pyreml</span> <code>Residual</code>. Defaults to <code>Residual()</code>: <span class="math inline">\(\sigma^2_R I\)</span>.</td>
+</tr>
+<tr class="odd">
+<td><code>lr_beta</code></td>
+<td>Learning rate of <span class="math inline">\(\beta\)</span>. Defaults to 1e-3.</td>
+</tr>
+<tr class="even">
+<td><code>lr_var</code></td>
+<td>Learning rate of the variances. Defaults to 1e-3.</td>
+</tr>
+<tr class="odd">
+<td><code>full</code></td>
+<td>Runs the <span class="pyreml">pyreml</span> <a href="#initialization">initialization</a> and the REML of the <a href="./training.html#polish">polish</a>. Defaults to <code>True</code>; <code>False</code> skips both, for datasets too large for them.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="embeddings" class="level2">
+<h2 class="anchored" data-anchor-id="embeddings">Embeddings</h2>
+<p>An <code>Embedding</code> wraps a network and its optimizer:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>Embedding(</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    network,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    optimizer <span class="op">=</span> partial(torch.optim.AdamW, lr<span class="op">=</span><span class="fl">1e-3</span>, weight_decay<span class="op">=</span><span class="fl">1e-1</span>),</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>network</code></td>
+<td>The network <span class="math inline">\(\nu\)</span>, an <code>nn.Module</code> returning the embeddings (see <a href="#the-network">the network</a>).</td>
 </tr>
 <tr class="even">
 <td><code>optimizer</code></td>
 <td>A <code>torch.optim</code> optimizer, LBFGS excepted, as a factory of the parameter groups. Defaults to <code>partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)</code>.</td>
 </tr>
+</tbody>
+</table>
+<p>Its name in <code>embedding</code> is the handle by which the random effects refer to it. Several random effects can share the same embedding: the network is then embedded once per minibatch, and stepped once by its optimizer.</p>
+<section id="the-network" class="level3">
+<h3 class="anchored" data-anchor-id="the-network">The network</h3>
+<p>The network is user-defined, under the following contract:</p>
+<ul>
+<li><code>network()</code> returns the <span class="math inline">\(n \times d\)</span> embedding of every row of <code>data</code>, in the same order.</li>
+<li><code>network(rows)</code>, with <code>rows</code> a boolean mask over the rows of <code>data</code>, returns the embeddings of the selected rows only. Training feeds the labelled rows of each minibatch alone, so that batch statistics (<em>e.g.</em> BatchNorm) never see the others.</li>
+<li>The networks must share their device. The mixed model runs in double on that device; the networks keep their own dtype.</li>
+</ul>
+<p>The features <span class="math inline">\(z\)</span> are typically stored in the network as a buffer:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Network(nn.Module):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, z):</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.register_buffer(<span class="st">"z"</span>, z)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.body <span class="op">=</span> nn.Sequential(...)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, rows<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.body(<span class="va">self</span>.z <span class="cf">if</span> rows <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> <span class="va">self</span>.z[rows])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Different embeddings can read the same features, or different ones, <em>e.g.</em> SNPs and gene expressions.</p>
+<p>The embeddings are projected on the unit sphere before entering the mixed model (see <a href="./deep_kernel.html">Deep kernel</a>). Dropout and BatchNorm belong to the network: <span class="m2n2">m2n2</span> switches it to <code>train()</code> mode for the gradient steps, and to <code>eval()</code> mode for validation and prediction.</p>
+</section>
+</section>
+<section id="neural-random-effects" class="level2">
+<h2 class="anchored" data-anchor-id="neural-random-effects">Neural random effects</h2>
+<p>A <code>RandomNN</code> term is a random effect <span class="math inline">\(Z_j u_j\)</span> built upon an embedding:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>RandomNN(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    embedding <span class="op">=</span> <span class="st">"geno"</span>,</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    group     <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 12%">
+<col style="width: 87%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
 <tr class="odd">
-<td><code>lr_beta</code></td>
-<td>Learning rate of <span class="math inline">\(\beta\)</span>. Defaults to the optimizer’s.</td>
+<td><code>embedding</code></td>
+<td>Name of the embedding, a key of the <code>embedding</code> dictionary.</td>
 </tr>
 <tr class="even">
-<td><code>lr_var</code></td>
-<td>Learning rate of the variances. Defaults to the optimizer’s.</td>
+<td><code>group</code></td>
+<td>Qualitative column defining the <span class="math inline">\(q_j\)</span> groups of the term. Defaults to <code>None</code>: a single group, the general effect.</td>
 </tr>
 </tbody>
 </table>
-</section>
-<section id="the-network" class="level2">
-<h2 class="anchored" data-anchor-id="the-network">The network</h2>
-<p>The network is user-defined, under the following contract:</p>
+<p>With <span class="math inline">\(Z = \nu(z, \theta)\)</span> the embedding, the term reads:</p>
 <ul>
-<li><code>Z()</code> returns the <span class="math inline">\(n \times d\)</span> embedding of every row of <code>data</code>, in the same order. Aligning the two is the user’s responsibility: only the number of rows is checked.</li>
-<li><code>Z(rows)</code>, with <code>rows</code> a boolean mask over the rows of <code>data</code>, returns the embeddings of the selected rows only. Training feeds the labelled rows of each minibatch alone, so that batch statistics (<em>e.g.</em> BatchNorm) never see the others.</li>
-<li>The model runs in the dtype and on the device of the output of <code>Z()</code>.</li>
+<li><span class="math inline">\(Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)\)</span>, of dimension <span class="math inline">\(n \times q_j d\)</span>: the embedding of each individual in the columns of its group, zeros elsewhere;</li>
+<li><span class="math inline">\(u_j \sim N(0, \sigma^2_{u_j} I)\)</span>, <span class="math inline">\(u_j \in \mathbb{R}^{q_j d}\)</span>: one embedding effect vector per group.</li>
 </ul>
-<p>The features <span class="math inline">\(z\)</span> are typically stored in the network as a buffer:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Network(nn.Module):</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, z):</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>()</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.register_buffer(<span class="st">"z"</span>, z)</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.body <span class="op">=</span> nn.Sequential(...)</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, rows<span class="op">=</span><span class="va">None</span>):</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.body(<span class="va">self</span>.z <span class="cf">if</span> rows <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> <span class="va">self</span>.z[rows])</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The embeddings are projected on the unit sphere before entering the mixed model (see <a href="./deep_kernel.html">Deep kernel</a>). Dropout and BatchNorm belong to the network: <span class="m2n2">m2n2</span> switches it to <code>train()</code> mode for the gradient steps, and to <code>eval()</code> mode for validation and prediction.</p>
+<p>Without <code>group</code>, <span class="math inline">\(Z_j = Z\)</span>: the effects <span class="math inline">\(u_j\)</span> are shared by all individuals. With <code>group</code>, each group receives its own effects: combined with a general term on the same embedding, they capture what is specific to the group (see <a href="./deep_kernel.html">Deep kernel</a>). The terms are independent: several groupings, crossed or nested, are as many terms.</p>
+</section>
+<section id="other-random-effects" class="level2">
+<h2 class="anchored" data-anchor-id="other-random-effects">Other random effects</h2>
+<p>Any <span class="pyreml">pyreml</span> <code>Random</code> term, <em>e.g.</em> a pedigree or an environmental effect, can be added to <code>random</code>, as well as any <code>Residual</code> structure. They follow the <a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/building_models.html">pyreml specification system</a>, and their design is fixed during training.</p>
 </section>
 <section id="data-layout-and-missing-values" class="level2">
 <h2 class="anchored" data-anchor-id="data-layout-and-missing-values">Data layout and missing values</h2>
 <ul>
 <li>A row missing the response is left out of the fit, but still predicted.</li>
 <li>A row missing a fixed covariate is left out of the fit.</li>
-<li><code>specificity</code> must be qualitative and complete: numeric codes are to be cast to <code>str</code>.</li>
+<li><code>group</code> must be qualitative and complete: numeric codes are to be cast to <code>str</code>.</li>
 </ul>
-<p>The random design <span class="math inline">\([Z_G \mid Z_S]\)</span> has <span class="math inline">\(d(1 + q)\)</span> columns, <span class="math inline">\(d\)</span> without <code>specificity</code>.</p>
+<p>The random design <span class="math inline">\([Z_1 \mid Z_2 \mid \dots]\)</span> has <span class="math inline">\(\sum_j q_j d_j\)</span> columns over the <code>RandomNN</code> terms, plus those of the <code>Random</code> terms.</p>
 </section>
 <section id="initialization" class="level2">
 <h2 class="anchored" data-anchor-id="initialization">Initialization</h2>
-<p>The variances <span class="math inline">\(\sigma^2_G\)</span>, <span class="math inline">\(\sigma^2_S\)</span> and <span class="math inline">\(\sigma^2_R\)</span> are log-parameterized and initialized at the variance of the response. <span class="math inline">\(\beta\)</span> is initialized by ordinary least squares on the labelled rows.</p>
-<p><code>optimizer</code> is called on four parameter groups:</p>
+<p>The model is first fitted by <span class="pyreml">pyreml</span> without the <code>RandomNN</code> terms, on the labelled rows: it initializes <span class="math inline">\(\beta\)</span>, and the variances of the <code>Random</code> terms and of the residual. The variances of the <code>RandomNN</code> terms are then initialized at the variance of the response. All variances are log-parameterized.</p>
+<p>With <code>full = False</code>, this first fit is skipped: <span class="math inline">\(\beta\)</span> is initialized by ordinary least squares on the labelled rows, and the variances of the <code>Random</code> terms and of the residual at their <span class="pyreml">pyreml</span> initial values.</p>
+<p>The optimizer of each embedding is called on two parameter groups, and <span class="math inline">\(\beta\)</span> and the variances are stepped by Adam:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 40%">
-<col style="width: 30%">
-<col style="width: 14%">
-<col style="width: 15%">
+<col style="width: 36%">
+<col style="width: 26%">
+<col style="width: 11%">
+<col style="width: 12%">
+<col style="width: 13%">
 </colgroup>
 <thead>
 <tr class="header">
 <th>Group</th>
 <th>Parameters</th>
+<th>Optimizer</th>
 <th>Weight decay</th>
 <th>Learning rate</th>
 </tr>
@@ -338,22 +435,26 @@ window.Quarto = {
 <td>Tensors of dimension <span class="math inline">\(\geq 2\)</span></td>
 <td><code>optimizer</code></td>
 <td><code>optimizer</code></td>
+<td><code>optimizer</code></td>
 </tr>
 <tr class="even">
 <td>Network biases, normalization parameters</td>
 <td>Vectors</td>
+<td><code>optimizer</code></td>
 <td>0</td>
 <td><code>optimizer</code></td>
 </tr>
 <tr class="odd">
 <td>Fixed effects</td>
 <td><span class="math inline">\(\beta\)</span></td>
+<td>Adam</td>
 <td>0</td>
 <td><code>lr_beta</code></td>
 </tr>
 <tr class="even">
 <td>Variances</td>
 <td><span class="math inline">\(\log \sigma^2\)</span></td>
+<td>Adam</td>
 <td>0</td>
 <td><code>lr_var</code></td>
 </tr>
@@ -372,51 +473,67 @@ window.Quarto = {
 </thead>
 <tbody>
 <tr class="odd">
-<td><code>model.prediction</code></td>
-<td><span class="math inline">\(Z_G \hat u_G + Z_S \hat u_S\)</span> for every row of <code>data</code>, missing responses included. Fixed effects excluded.</td>
-</tr>
-<tr class="even">
 <td><code>model.estimates</code></td>
 <td>Fixed-effect estimates (BLUE) as a long table <code>response · term · estimate · SE · t</code>.</td>
 </tr>
-<tr class="odd">
-<td><code>model.uhat_general</code></td>
-<td><span class="math inline">\(\hat u_G\)</span>, of shape <code>(d,)</code>.</td>
-</tr>
 <tr class="even">
-<td><code>model.uhat_specific</code></td>
-<td><span class="math inline">\(\hat u_S\)</span>, of shape <code>(q, d)</code>, one row per level of <code>model.levels</code>.</td>
-</tr>
-<tr class="odd">
-<td><code>model.PEV</code></td>
-<td>Prediction error variance of <span class="math inline">\([\hat u_G, \hat u_S]\)</span>.</td>
-</tr>
-<tr class="even">
-<td><code>model.residuals</code></td>
-<td>Residuals of the labelled rows.</td>
+<td><code>model.residual</code></td>
+<td>The <span class="pyreml">pyreml</span> <code>Residual</code>: <code>.residuals</code> and <code>.table</code> of the labelled rows, <code>.variance</code>.</td>
 </tr>
 <tr class="odd">
 <td><code>model.varcomp()</code></td>
-<td>Raw and unit variances (see <a href="./deep_kernel.html">Deep kernel</a>).</td>
+<td>Raw and unit variances, one row per term and the residual last (see <a href="./deep_kernel.html">Deep kernel</a>).</td>
 </tr>
 <tr class="even">
-<td><code>model.AIC</code></td>
-<td>Akaike information criterion, post REML.</td>
-</tr>
-<tr class="odd">
 <td><code>model.loss</code>, <code>model.score</code></td>
 <td>Training curves (see <a href="./training.html#monitoring">Monitoring</a>).</td>
 </tr>
-<tr class="even">
-<td><code>model.pca</code></td>
-<td>PCA of the raw and weighted embeddings: <code>coords</code>, <code>inertia</code>, <code>eigvec</code> per embedding.</td>
-</tr>
 <tr class="odd">
-<td><code>model.plot(plan=(0, 1))</code></td>
-<td>Individual projections on the principal plan <code>plan</code>, colored by group.</td>
+<td><code>model.random[j]</code></td>
+<td>The <span class="math inline">\(j\)</span>-th random effect, in the order of <code>random</code>.</td>
 </tr>
 </tbody>
 </table>
+<p>Each <code>RandomNN</code> term exposes:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 30%">
+<col style="width: 69%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Accessor</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>.prediction</code></td>
+<td><span class="math inline">\(Z_j \hat u_j\)</span> for every row of <code>data</code>, missing responses included.</td>
+</tr>
+<tr class="even">
+<td><code>.uhat</code></td>
+<td><span class="math inline">\(\hat u_j\)</span>, of shape <code>(q_j, d)</code>, one row per level of <code>.levels</code>.</td>
+</tr>
+<tr class="odd">
+<td><code>.levels</code></td>
+<td>The levels of <code>group</code>, <code>[None]</code> without it.</td>
+</tr>
+<tr class="even">
+<td><code>.PEV</code></td>
+<td>Prediction error variance of <span class="math inline">\(\hat u_j\)</span>.</td>
+</tr>
+<tr class="odd">
+<td><code>.pca</code></td>
+<td>PCA of the <code>"Raw embeddings"</code> <span class="math inline">\(Z\)</span> and of the <code>"Weighted embeddings"</code> <span class="math inline">\(Z \odot \hat u_{j,k(i)}\)</span>, with <span class="math inline">\(k(i)\)</span> the group of individual <span class="math inline">\(i\)</span>: <code>coords</code>, <code>inertia</code>, <code>eigvec</code> per embedding.</td>
+</tr>
+<tr class="even">
+<td><code>.plot(plan=(0, 1), group_by=None)</code></td>
+<td>Individual projections on the principal plan <code>plan</code>, colored by <code>group_by</code>, a qualitative column of <code>data</code>. Defaults to the term’s <code>group</code>, monochrome without it.</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>Random</code> terms expose their <span class="pyreml">pyreml</span> accessors.</p>
 
 
 </section>

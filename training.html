@@ -102,7 +102,7 @@ div.csl-indent {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-447e42e69aaa9833c0ba1b986f430b20.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-eee0d47ffbbb6b0172a98e7cc31c05ca.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-293520738ce947f8998387a330a50f79.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -254,7 +254,7 @@ window.Quarto = {
 </header>
 
 
-<p><span class="m2n2">m2n2</span> trains the network <span class="math inline">\(\nu\)</span>, the fixed effects <span class="math inline">\(\beta\)</span> and the variances jointly, by minibatch gradient descent on the REML loss. The network is then frozen, and the mixed model is polished by <span class="pyreml">pyreml</span>.</p>
+<p><span class="m2n2">m2n2</span> trains the networks, the fixed effects <span class="math inline">\(\beta\)</span> and the variances jointly, by minibatch gradient descent on the REML loss. The networks are then frozen, and the mixed model is polished by <span class="pyreml">pyreml</span>.</p>
 <section id="the-fit-method" class="level2">
 <h2 class="anchored" data-anchor-id="the-fit-method">The fit method</h2>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>model.fit(</span>
@@ -300,9 +300,9 @@ window.Quarto = {
 </table>
 <p>The pipeline:</p>
 <ol type="1">
-<li>REML descent of <span class="math inline">\(\theta\)</span>, <span class="math inline">\(\beta\)</span> and the variances, on <a href="#minibatches">minibatches</a> (see <a href="#loss-function">Loss function</a>).</li>
+<li>REML descent of the network parameters, <span class="math inline">\(\beta\)</span> and the variances, on <a href="#minibatches">minibatches</a> (see <a href="#loss-function">Loss function</a>).</li>
 <li><a href="#validation-and-early-stopping">Validation</a> at each epoch, early stopping and restoration of the best state.</li>
-<li><a href="#polish">Polish</a>: REML and HMME with the network frozen.</li>
+<li><a href="#polish">Polish</a>: REML and HMME with the networks frozen, HMME only with <code>full = False</code>.</li>
 </ol>
 </section>
 <section id="loss-function" class="level2">
@@ -311,9 +311,10 @@ window.Quarto = {
 <p><span class="math display">\[
 y \sim N\big(X\beta,\ V\big),
 \qquad
-V = \sigma^2_G Z_G Z_G^\top + \sigma^2_S Z_S Z_S^\top + \sigma^2_R I,
+V = \sum_j Z_j G_j Z_j^\top + R,
 \]</span></p>
-<p>with <span class="math inline">\(Z_G = \nu(z, \theta)\)</span>. The network parameters <span class="math inline">\(\theta\)</span> only enter <span class="math inline">\(V\)</span>: like <span class="math inline">\(\sigma^2_G\)</span>, <span class="math inline">\(\sigma^2_S\)</span> and <span class="math inline">\(\sigma^2_R\)</span>, they are variance parameters, estimated jointly with <span class="math inline">\(\beta\)</span> by restricted maximum of likelihood (REML):</p>
+<p>with one term <span class="math inline">\(j\)</span> per random effect, and <span class="math inline">\(R\)</span> the covariance of the residual. For a <code>RandomNN</code> term, <span class="math inline">\(Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)\)</span>, with <span class="math inline">\(\nu\)</span> the network of its <code>Embedding</code> and <span class="math inline">\(q_j\)</span> the number of groups, and <span class="math inline">\(G_j = \sigma^2_{u_j} I\)</span>. For a <span class="pyreml">pyreml</span> <code>Random</code> term, <span class="math inline">\(Z_j\)</span> and <span class="math inline">\(G_j\)</span> follow its specification.</p>
+<p>The network parameters <span class="math inline">\(\theta\)</span> only enter <span class="math inline">\(V\)</span>: like the variances, they are variance parameters, estimated jointly with <span class="math inline">\(\beta\)</span> by restricted maximum of likelihood (REML):</p>
 <p><span class="math display">\[
 -2\ell_{\text{REML}} = \log\lvert V\rvert
 + r^\top V^{-1} r
@@ -322,36 +323,36 @@ V = \sigma^2_G Z_G Z_G^\top + \sigma^2_S Z_S Z_S^\top + \sigma^2_R I,
 \qquad
 r = y - X\beta.
 \]</span></p>
-<p><span class="math inline">\(u_G\)</span> and <span class="math inline">\(u_S\)</span> do not enter the loss: they are predicted afterwards by solving Henderson’s mixed model equations (HMME).</p>
+<p>The random effects <span class="math inline">\(u_j\)</span> do not enter the loss: they are predicted afterwards by solving Henderson’s mixed model equations (HMME).</p>
 <section id="minibatches" class="level3">
 <h3 class="anchored" data-anchor-id="minibatches">Minibatches</h3>
-<p>At each epoch, the labelled training rows are shuffled and split into minibatches of <code>batch_size</code> rows, the incomplete last batch dropped. As the embedding is computed row-wise, the covariance of a minibatch <span class="math inline">\(B\)</span> is the submatrix <span class="math inline">\(V_B\)</span> of <span class="math inline">\(V\)</span>, and <span class="math inline">\(y_B \sim N(X_B\beta, V_B)\)</span> exactly: the loss of a minibatch is the REML of the corresponding sub-model. The random effects are iid, but the observations are not: they share <span class="math inline">\(u_G\)</span>, and <span class="math inline">\(V\)</span> is not diagonal. The minibatch losses therefore do not add up to the full REML: minibatch descent is a stochastic approximation of it, which performs well empirically <span class="citation" data-cites="simchoni_integrating_2023">(<a href="#ref-simchoni_integrating_2023" role="doc-biblioref">Simchoni &amp; Rosset, 2023</a>)</span>.</p>
-<p>The loss is computed by <span class="pyreml">pyreml</span>, on the <a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#smw">SMW</a> path when <span class="math inline">\(d(1+q) &lt; n_B\)</span>, on <span class="math inline">\(V_B\)</span> directly otherwise. The gradient flows by autograd through the variances, <span class="math inline">\(\beta\)</span> and the network, and is applied by <code>optimizer</code>, AdamW <span class="citation" data-cites="loshchilov_decoupled_2019">(<a href="#ref-loshchilov_decoupled_2019" role="doc-biblioref">Loshchilov &amp; Hutter, 2019</a>)</span> by default.</p>
+<p>At each epoch, the labelled training rows are shuffled and split into minibatches of <code>batch_size</code> rows, the incomplete last batch dropped. As the embeddings are computed row-wise, the covariance of a minibatch <span class="math inline">\(B\)</span> is the submatrix <span class="math inline">\(V_B\)</span> of <span class="math inline">\(V\)</span>, and <span class="math inline">\(y_B \sim N(X_B\beta, V_B)\)</span> exactly: the loss of a minibatch is the REML of the corresponding sub-model. When a level is absent from the minibatch, <span class="math inline">\(X_B\)</span> loses rank, <em>e.g.</em> an empty column, or the reference level of a qualitative effect, the intercept being then the sum of the present dummies. The REML of the sub-model is then computed on a basis of the columns of <span class="math inline">\(X_B\)</span>, selected by pivoted QR: the fixed effects it cannot estimate are left out of this minibatch. The observations are not independent: they share the <span class="math inline">\(u_j\)</span>, and <span class="math inline">\(V\)</span> is not diagonal. The minibatch losses therefore do not add up to the full REML: minibatch descent is a stochastic approximation of it, which performs well empirically <span class="citation" data-cites="simchoni_integrating_2023">(<a href="#ref-simchoni_integrating_2023" role="doc-biblioref">Simchoni &amp; Rosset, 2023</a>)</span>.</p>
+<p>The loss is computed by <span class="pyreml">pyreml</span>, on the <a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#smw">SMW</a> path when the total number of columns of <span class="math inline">\(Z = [Z_1 \mid Z_2 \mid \dots]\)</span> is below <span class="math inline">\(n_B\)</span>, on <span class="math inline">\(V_B\)</span> directly otherwise. The gradient flows by autograd through the variances, <span class="math inline">\(\beta\)</span> and the networks. Each network is stepped by the optimizer of its <code>Embedding</code>, AdamW <span class="citation" data-cites="loshchilov_decoupled_2019">(<a href="#ref-loshchilov_decoupled_2019" role="doc-biblioref">Loshchilov &amp; Hutter, 2019</a>)</span> by default, and <span class="math inline">\(\beta\)</span> and the variances by Adam <span class="citation" data-cites="kingma_adam_2017">(<a href="#ref-kingma_adam_2017" role="doc-biblioref">Kingma &amp; Ba, 2017</a>)</span>, at the learning rates <code>lr_beta</code> and <code>lr_var</code>. A network shared by several terms is embedded once per minibatch: its gradient gathers the contributions of all of them, and its optimizer steps once.</p>
 <p><code>model.loss</code> records the mean minibatch loss of each epoch. It scales with <span class="math inline">\(n_B\)</span>: curves are comparable at fixed <code>batch_size</code> only.</p>
 </section>
 </section>
 <section id="validation-and-early-stopping" class="level2">
 <h2 class="anchored" data-anchor-id="validation-and-early-stopping">Validation and early stopping</h2>
-<p>Trained on the marginal likelihood, a deep kernel can overfit more severely than a network trained alone <span class="citation" data-cites="ober_promises_2021">(<a href="#ref-ober_promises_2021" role="doc-biblioref">Ober et al., 2021</a>)</span>. For this reason, an early stopping strategy is proposed my <span class="m2n2">m2n2</span>.</p>
-<p>With <code>validation</code> set, a fraction of the labelled rows is held out once, at random. At each epoch, the network in <code>eval()</code> mode, the held-out rows <span class="math inline">\(v\)</span> are predicted by their BLUP from the training rows <span class="math inline">\(t\)</span>:</p>
+<p>Trained on the marginal likelihood, a deep kernel can overfit more severely than a network trained alone <span class="citation" data-cites="ober_promises_2021">(<a href="#ref-ober_promises_2021" role="doc-biblioref">Ober et al., 2021</a>)</span>. For this reason, an early stopping strategy is proposed by <span class="m2n2">m2n2</span>.</p>
+<p>With <code>validation</code> set, a fraction of the labelled rows is held out once, at random. At each epoch, the networks in <code>eval()</code> mode, the held-out rows <span class="math inline">\(v\)</span> are predicted by their BLUP from the training rows <span class="math inline">\(t\)</span>:</p>
 <p><span class="math display">\[
 \hat y_v = X_v \beta + Z_v G Z_t^\top V_t^{-1} (y_t - X_t \beta),
 \qquad
-V_t = Z_t G Z_t^\top + \sigma^2_R I,
+V_t = Z_t G Z_t^\top + R_t,
 \]</span></p>
-<p>with <span class="math inline">\(Z = [Z_G \mid Z_S]\)</span> and <span class="math inline">\(G\)</span> the diagonal of the variances. Their mean squared error is recorded in <code>model.score</code>.</p>
-<p>The best state (network weights, <span class="math inline">\(\beta\)</span>, variances) is kept. Training stops after <code>patience</code> epochs without improvement, and the best state is restored. Without <code>validation</code>, training runs <code>n_epoch</code> epochs and the last state is kept.</p>
+<p>with <span class="math inline">\(Z = [Z_1 \mid Z_2 \mid \dots]\)</span> and <span class="math inline">\(G\)</span> the block diagonal of the <span class="math inline">\(G_j\)</span>. Their mean squared error is recorded in <code>model.score</code>.</p>
+<p>The best state (weights of every network, <span class="math inline">\(\beta\)</span>, variances) is kept. Training stops after <code>patience</code> epochs without improvement, and the best state is restored. Without <code>validation</code>, training runs <code>n_epoch</code> epochs and the last state is kept.</p>
 <p>Each validation solves a dense system in <span class="math inline">\(V_t\)</span>, of size <span class="math inline">\(n_t \times n_t\)</span>.</p>
-<p>The held-out rows, the minibatches, the network initialization and the dropout masks all draw from the PyTorch generator: <code>torch.manual_seed</code> makes the training reproducible.</p>
+<p>The held-out rows, the minibatches, the network initializations and the dropout masks all draw from the PyTorch generator: <code>torch.manual_seed</code> makes the training reproducible.</p>
 </section>
 <section id="polish" class="level2">
 <h2 class="anchored" data-anchor-id="polish">Polish</h2>
-<p>The network is frozen in <code>eval()</code> mode and the embeddings computed once. The model is then a linear mixed model with a known random design, refitted by <span class="pyreml">pyreml</span> on every labelled row, held-out ones included:</p>
+<p>The networks are frozen in <code>eval()</code> mode and the embeddings computed once. The model is then a linear mixed model with a known random design, refitted by <span class="pyreml">pyreml</span> on every labelled row, held-out ones included:</p>
 <ul>
 <li><a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#reml">REML</a> re-estimates <span class="math inline">\(\beta\)</span> and the variances, by L-BFGS with its adaptive convergence criterion;</li>
-<li><a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#hmme">HMME</a> gives the BLUE of <span class="math inline">\(\beta\)</span>, the BLUP of <span class="math inline">\(u_G\)</span> and <span class="math inline">\(u_S\)</span>, and their error variances.</li>
+<li><a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#hmme">HMME</a> gives the BLUE of <span class="math inline">\(\beta\)</span>, the BLUP of every <span class="math inline">\(u_j\)</span>, and their error variances.</li>
 </ul>
-<p>Both run in the dtype of the network output.</p>
+<p>Both run in double, as the whole mixed model. With <code>full = False</code> (see <a href="./build.html#the-from_dataframe-constructor">Building models</a>), the REML is skipped: HMME runs on the variances at the end of training (restored state with <code>validation</code>).</p>
 </section>
 <section id="monitoring" class="level2">
 <h2 class="anchored" data-anchor-id="monitoring">Monitoring</h2>
@@ -389,18 +390,22 @@ V_t = Z_t G Z_t^\top + \sigma^2_R I,
 </tr>
 </tbody>
 </table>
+<p>The <code>opti_REML</code> accessors are not set with <code>full = False</code>.</p>
 <section id="training-curves" class="level3">
 <h3 class="anchored" data-anchor-id="training-curves">Training curves</h3>
-<p>Typical training behavior:</p>
+<p>Training behavior on a small example:</p>
 <p align="center">
 <img src="img/m2n2_training.png" width="700">
 </p>
-<p>The validation MSE rises once the network overfits; the dashed line marks the restored epoch, from which the <a href="#polish">polish</a> is run.</p>
+<p>The validation MSE rises once the networks overfit; the dashed line marks the restored epoch, from which the <a href="#polish">polish</a> is run.</p>
 </section>
 </section>
 <section id="references" class="level2">
 <h2 class="anchored" data-anchor-id="references">References</h2>
 <div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" data-line-spacing="2" role="list">
+<div id="ref-kingma_adam_2017" class="csl-entry" role="listitem">
+Kingma, D. P., &amp; Ba, J. (2017). <em>Adam: <span>A</span> <span>Method</span> for <span>Stochastic</span> <span>Optimization</span></em>. arXiv. <a href="https://doi.org/10.48550/arXiv.1412.6980">https://doi.org/10.48550/arXiv.1412.6980</a>
+</div>
 <div id="ref-loshchilov_decoupled_2019" class="csl-entry" role="listitem">
 Loshchilov, I., &amp; Hutter, F. (2019). Decoupled <span>Weight</span> <span>Decay</span> <span>Regularization</span>. <em>International <span>Conference</span> on <span>Learning</span> <span>Representations</span></em>.
 </div>
