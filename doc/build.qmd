@@ -93,7 +93,7 @@ After `.fit()` (see [Training models](training.qmd)):
 | `model.uhat_specific`          | Per specificity: $\hat u_{S_k}$, of shape `(q_k, d)`, one row per level of `model.levels[k]`. |
 | `model.PEV`                    | Prediction error variance of $[\hat u_G, \hat u_{S_1}, \dots, \hat u_{S_m}]$.   |
 | `model.residuals`              | Residuals of the labelled rows.                                                  |
-| `model.varcomp()`              | Raw and unit variances, rows `G`, `R` and `S:<specificity>` (see [Deep kernel](deep_kernel.qmd)). |
+| `model.varcomp()`              | Raw and unit variances, rows `G`, `S:<specificity>` and `R` (see [Deep kernel](deep_kernel.qmd)). |
 | `model.AIC`                    | Akaike information criterion, post REML.                                         |
 | `model.loss`, `model.score`    | Training curves (see [Monitoring](training.qmd#monitoring)).                |
 | `model.pca`                    | PCA of the raw, general weighted and specific weighted embeddings (`"Specific weighted embeddings (<specificity>)"`): `coords`, `inertia`, `eigvec` per embedding. |

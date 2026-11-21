@@ -288,13 +288,10 @@ class MixedModelNN(MixedModel):
 
     def varcomp(self):
         """Raw variances (per embedding dimension) and unit variances (per individual, GBLUP-like)."""
-        varcomp = pd.DataFrame(
-            {"raw": [self.var_G, self.var_R], "unit": [self.var_G_unit, self.var_R_unit]},
-            index=["G", "R"],
-        )
-        for s in self.specificity:
-            varcomp.loc[f"S:{s}"] = [self.var_S[s], self.var_S_unit[s]]
-        return varcomp
+        rows = {"G": [self.var_G, self.var_G_unit]}
+        rows |= {f"S:{s}": [self.var_S[s], self.var_S_unit[s]] for s in self.specificity}
+        rows["R"] = [self.var_R, self.var_R_unit]
+        return pd.DataFrame.from_dict(rows, orient="index", columns=["raw", "unit"])
 
     def plot(self, plan: tuple[int, int] = (0, 1), focus: int | str | None = None):
         """
