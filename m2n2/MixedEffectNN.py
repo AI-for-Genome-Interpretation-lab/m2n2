@@ -1,34 +1,28 @@
 import copy
-from functools import partial
 
 import numpy as np
 import pandas as pd
 import patsy
-import matplotlib.pyplot as plt
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
-from pyreml import MixedModel
+from pyreml import MixedModel, Random, Residual
+from .Embedding import Embedding
+from .RandomNN import RandomNN
 
 
 class MixedModelNN(MixedModel):
     """
-    y = X beta + Z u_G + Z_S u_S + e, with u_G ~ N(0, s2_G I), u_S ~ N(0, s2_S I),
-    e ~ N(0, s2_R I). Z is the embedding returned by the network Z(), rows
-    projected on the unit sphere (||z_i||^2 = 1) so that the variances are
-    identifiable. Z_S = [Z * 1{group A} | Z * 1{group B} | ...], with the groups
-    given by the qualitative column `specificity`; without it, the model reduces
-    to y = X beta + Z u_G + e. The network is trained jointly with beta and the
-    variances on the REML loss.
+    y = X beta + sum_j Z_j u_j + e. Each random effect is either a RandomNN, built upon one of the
+    networks of `embedding`, or a pyreml Random; e follows the pyreml Residual. The networks are
+    trained jointly with beta and the variances on the REML loss.
 
-    Z() must return one embedding per row of data, in the same order: aligning
-    the two is the caller's responsibility. Z(rows), with rows a boolean mask
-    over the rows of data, must return the embeddings of the selected rows only:
-    training feeds the labelled rows alone, so that batch statistics (e.g.
-    BatchNorm) never see the others. Rows with a missing response are left out
-    of the fit but still predicted.
-    Everything runs in the dtype and on the device of Z()'s output.
+    The model is first built by pyreml without the RandomNN terms: it designs the Random terms and
+    the residual, and, if full, fits them to initialize beta and their variances. It is then rebuilt
+    by the low-level constructor, with varmeth and varmeth_inv stacking every term, in the order of
+    `random`. Rows with a missing response are left out of the fit, but the RandomNN terms still
+    predict them. The mixed model runs in double, on the device of the networks output: in float32,
+    the REML term log|X'V^-1 X| of a minibatch is too ill-conditioned. The networks keep their dtype.
     """
 
     @classmethod
@@ -36,119 +30,130 @@ class MixedModelNN(MixedModel):
         cls,
         data: pd.DataFrame,
         response: str,
-        Z: nn.Module,
-        specificity: str | None = None,
+        embedding: dict[str, Embedding],
+        random: list[RandomNN | Random],
         fixed: str = "1",
-        optimizer=partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1),
-        lr_beta: float | None = None,
-        lr_var: float | None = None,
+        residual: Residual | None = None,
+        lr_beta: float = 1e-3,
+        lr_var: float = 1e-3,
+        full: bool = True,
     ):
         data = data.reset_index(drop=True)
+        residual = Residual() if residual is None else residual
 
-        # eval mode: this shape check must not update the BatchNorm running stats
-        Z.eval()
-        with torch.no_grad():
-            Z_all = Z()
-        
-        device, dtype = Z_all.device, Z_all.dtype
+        # eval mode: these shape checks must not update the BatchNorm running stats
+        outputs = {}
+        for name, emb in embedding.items():
+            emb.network.eval()
+            with torch.no_grad():
+                outputs[name] = emb.network()
+            if outputs[name].shape[0] != len(data):
+                raise ValueError(f"embedding '{name}' returns {outputs[name].shape[0]} rows, data has {len(data)}")
+        if len({o.device for o in outputs.values()}) > 1:
+            raise ValueError(f"the networks must share their device, got {[o.device for o in outputs.values()]}")
+        device = next(iter(outputs.values())).device
 
-        if Z_all.shape[0] != len(data):
-            raise ValueError(f"Z() returns {Z_all.shape[0]} rows, data has {len(data)}")
+        # rows of the fit, as pyreml filters them: response, fixed and Random covariates complete
+        randoms = [term for term in random if not isinstance(term, RandomNN)]
+        keep = data[response].notna()
+        for formula in [fixed] + [term.formula for term in randoms]:
+            keep &= data.index.isin(patsy.dmatrix(formula, data=data, NA_action="drop", return_type="dataframe").index)
+        for term in randoms:
+            keep &= data[[term.unit] if isinstance(term.unit, str) else list(term.unit)].notna().all(axis=1)
 
-        labelled = data[response].notna()
-        if specificity is None:
-            codes, levels, groups = np.zeros(len(data), dtype=int), [None], None
-        else:
-            if pd.api.types.is_numeric_dtype(data[specificity]):
-                raise ValueError(f"specificity column '{specificity}' must be qualitative, got {data[specificity].dtype}")
-            if data[specificity].isna().any():
-                raise ValueError(f"specificity column '{specificity}' has {data[specificity].isna().sum()} missing values")
-            codes, levels = pd.factorize(data[specificity])
-            groups = torch.tensor(codes[:, None] == np.arange(len(levels)), dtype=dtype, device=device)
+        pm = MixedModel.from_dataframe(data[keep], response, fixed=fixed, random=randoms, residual=residual, device=str(device))
+        if pm.n != keep.sum():
+            raise ValueError(f"pyreml kept {pm.n} rows, {keep.sum()} expected")
+        if full:
+            pm.fit(verbose=False)
 
-        dm = patsy.dmatrix(fixed, data=data[labelled], NA_action="drop", return_type="dataframe")
-        keep = torch.as_tensor(data.index.isin(dm.index), device=device)
-
-        y = torch.tensor(data.loc[dm.index, response].to_numpy(), dtype=dtype, device=device).reshape(-1, 1)
-        X = torch.tensor(dm.to_numpy(), dtype=dtype, device=device)
-
-        d = Z_all.shape[1]
-        n_groups = 0 if groups is None else groups.shape[1]
-
-        log_v0 = float(np.log(y.var().item()))
-        log_sG = torch.tensor(log_v0, dtype=dtype, device=device, requires_grad=True)
-        log_sR = torch.tensor(log_v0, dtype=dtype, device=device, requires_grad=True)
-        log_sS = torch.tensor(log_v0, dtype=dtype, device=device, requires_grad=True)
-        varparams = [log_sG, log_sR] + ([log_sS] if n_groups else [])
+        log_v0 = float(np.log(pm.y.var().item()))
+        for term in random:
+            if isinstance(term, RandomNN):
+                term.design(data, embedding[term.embedding].network, outputs[term.embedding].shape[1], log_v0, device)
 
         # pyreml picks the path: Woodbury (varmeth_inv) if q < n, direct (varmeth) otherwise
         def varmeth(self):
-            g = torch.cat([torch.exp(log_sG).repeat(d), torch.exp(log_sS).repeat(n_groups * d)])
-            R = torch.exp(log_sR) * torch.eye(self.n, dtype=self.dtype, device=self.device)
-            return torch.diag(g), R
+            G = torch.block_diag(*[term.varmeth()() for term in self.random])
+            R = self.residual.varmeth()()[self.w_grid][:, self.w_grid]
+            return G, R
 
         def varmeth_inv(self):
-            ginv = torch.cat([torch.exp(-log_sG).repeat(d), torch.exp(-log_sS).repeat(n_groups * d)])
-            Rinv = torch.exp(-log_sR) * torch.eye(self.n, dtype=self.dtype, device=self.device)
-            return torch.diag(ginv), Rinv, d * log_sG + n_groups * d * log_sS, self.n * log_sR
+            inv_logdets = [term.varmeth_inv()() for term in self.random]
+            Ginv = torch.block_diag(*[gi for gi, _ in inv_logdets])
+            Rinv, logdet_R = self.residual.varmeth_inv()(self.w_grid)
+            return Ginv, Rinv, sum(ld for _, ld in inv_logdets), logdet_R
 
         mm = cls(
-            y = y,
-            X = X,
-            q = d * (1 + n_groups),
-            params      = varparams,
+            y = pm.y,
+            X = pm.X,
+            q = sum(term.k * term.c * term.L for term in random),
+            params      = pm.params + [term.log_var for term in random if isinstance(term, RandomNN)],
             varmeth     = varmeth,
             varmeth_inv = varmeth_inv,
-            device      = device
+            device      = str(device),
         )
 
-        mm.migrate(dtype)
-        mm.OLS(terminate=False)
+        if full:
+            mm.beta.data.copy_(pm.beta.data)
+        else:
+            mm.OLS(terminate=False)
 
         mm.response = [response]
-        mm.fixed_names = dm.design_info.column_names
-        mm.keep = keep
-        mm.network = Z
-        mm.specificity = specificity
-        mm.groups = groups
-        mm.codes = codes
-        mm.levels = list(levels)
-        mm.d = d
-        mm.optimizer = optimizer([
-            {"params": # network weights (matrices, kernels): shrunk
-                [p for p in Z.parameters() if p.ndim >= 2],
-            },
-            {"params": # network biases and normalization parameters (vectors): free
-                [p for p in Z.parameters() if p.ndim < 2],
-                "weight_decay": 0.0,
-            },
-            {"params": # beta: free
-                mm.beta,
-                "weight_decay": 0.0,
-            },
-            {"params": # variances: free
-                varparams,
-                "weight_decay": 0.0,
-            },
-        ])
-        for group, lr in zip(
-            mm.optimizer.param_groups[2:],
-            (lr_beta, lr_var),
-        ):
-            if lr is not None:
-                group["lr"] = lr
+        mm.fixed_names = pm.fixed_names
+        mm.w_grid = pm.w_grid
+        mm.random = random
+        mm.residual = residual
+        mm.embedding = embedding
+        mm.full = full
+        mm.keep = torch.tensor(keep.to_numpy(), device=device)
+        # the design of the Random terms is fixed: their dense incidence on the rows of the fit
+        mm.Z_random = {
+            i: torch.as_tensor(term.Z, dtype=torch.double, device=device)
+            for i, term in enumerate(random) if not isinstance(term, RandomNN)
+        }
+        mm.migrate(torch.double)
+
+        mm.optimizers = [
+            emb.optimizer([
+                {"params": # network weights (matrices, kernels): shrunk
+                    [p for p in emb.network.parameters() if p.ndim >= 2],
+                },
+                {"params": # network biases and normalization parameters (vectors): free
+                    [p for p in emb.network.parameters() if p.ndim < 2],
+                    "weight_decay": 0.0,
+                },
+            ])
+            for emb in embedding.values()
+        ] + [
+            torch.optim.Adam([
+                {"params": [mm.beta], "lr": lr_beta},
+                {"params": mm.params, "lr": lr_var},
+            ])
+        ]
 
         mm.loss = []
         mm.score = []
 
         return mm
 
-    def embed(self, rows=None):
-        Z = F.normalize(self.network(rows), dim=1)
-        if self.groups is not None:
-            g = self.groups if rows is None else self.groups[rows]
-            Z = torch.cat([Z, (g[:, :, None] * Z[:, None, :]).flatten(1)], dim=1)
-        return Z
+    def design(self, b: torch.Tensor | None = None) -> torch.Tensor:
+        """
+        Random design [Z_1 | Z_2 | ...] of the labelled rows at positions b (sorted, None = all).
+        Each network is called once, on these rows alone.
+        """
+        labelled = self.keep.nonzero().flatten()  # data row of each labelled row
+        rows = self.keep.clone()
+        if b is not None:
+            rows[:] = False
+            rows[labelled[b]] = True
+
+        embedded = {name: F.normalize(emb.network(rows), dim=1).to(self.dtype) for name, emb in self.embedding.items()}
+        return torch.cat([
+            term.block(embedded[term.embedding], rows) if isinstance(term, RandomNN)
+            else (self.Z_random[i] if b is None else self.Z_random[i][b])
+            for i, term in enumerate(self.random)
+        ], dim=1)
 
     def fit(
         self,
@@ -164,11 +169,11 @@ class MixedModelNN(MixedModel):
         MSE of their BLUP from the training rows; the best state is restored at the end, and the training
         stops after `patience` epochs without improvement (never if patience is None).
         """
-        # full labelled data; minibatches swap _y, _X, _Z and n, restored after each epoch
-        y, X, n = self._y, self._X, self.n
-        labelled = self.keep.nonzero().flatten()  # data row of each labelled row
+        # full labelled data; minibatches swap _y, _X, _Z, n, w_grid, beta and p, restored after each epoch
+        y, X, n, w_grid, beta_full, p = self._y, self._X, self.n, self.w_grid, self.beta, self.p
+        networks = [emb.network for emb in self.embedding.values()]
 
-        perm = torch.randperm(n, device=self.device)
+        perm = torch.randperm(n, device=self.keep.device)
         n_valid = 0 if validation is None else round(validation * n)
         valid, train = perm[:n_valid], perm[n_valid:]
         size = len(train) if batch_size is None else min(batch_size, len(train))
@@ -176,42 +181,49 @@ class MixedModelNN(MixedModel):
         best_mse, best_epoch = float("inf"), 0
         for epoch in range(n_epoch):
 
-            self.network.train()
+            for network in networks:
+                network.train()
             losses = []
-            for b in train[torch.randperm(len(train), device=self.device)].split(size):
+            for b in train[torch.randperm(len(train), device=train.device)].split(size):
                 if len(b) < size:
                     continue
                 b = b.sort().values
-                rows = torch.zeros_like(self.keep)
-                rows[labelled[b]] = True
-                self._y, self._X, self.n = y[b], X[b], len(b)
-                self._Z = self.embed(rows)
-                self.optimizer.zero_grad()
+                # fixed effects absent from the batch (empty columns of X_b) are left out: their
+                # X'V^-1 X would be singular. Indexing beta keeps the gradient on the full parameter
+                cols = X[b].any(dim=0)
+                self._y, self._X, self.n, self.w_grid = y[b], X[b][:, cols], len(b), w_grid[b]
+                self.beta, self.p = beta_full[cols], int(cols.sum())
+                self._Z = self.design(b)
+                for optimizer in self.optimizers:
+                    optimizer.zero_grad()
                 loss = self.REML_loss()
                 loss.backward()
-                self.optimizer.step()
+                for optimizer in self.optimizers:
+                    optimizer.step()
                 losses.append(loss.item())
-            self._y, self._X, self.n = y, X, n
+            self._y, self._X, self.n, self.w_grid = y, X, n, w_grid
+            self.beta, self.p = beta_full, p
             self.loss.append(float(np.mean(losses)))
             message = f"epoch {epoch + 1}/{n_epoch}  REML -2logLik {self.loss[-1]:.4f}"
 
             if n_valid:
-                # BLUP of the validation rows from the training rows, network frozen
-                self.network.eval()
+                # BLUP of the validation rows from the training rows, networks frozen
+                for network in networks:
+                    network.eval()
                 with torch.no_grad():
-                    Z = self.embed(self.keep)
+                    Z = self.design()
                     G, R = self.varmeth()
-                    g = G.diagonal()
-                    V = (Z[train] * g) @ Z[train].T + R[train][:, train]
-                    r = y[train] - X[train] @ self.beta.to(self.dtype)
-                    pred = X[valid] @ self.beta.to(self.dtype) + (Z[valid] * g) @ Z[train].T @ torch.linalg.solve(V, r)
+                    V = Z[train] @ G @ Z[train].T + R[train][:, train]
+                    beta = self.beta.to(self.dtype)
+                    r = y[train] - X[train] @ beta
+                    pred = X[valid] @ beta + Z[valid] @ G @ Z[train].T @ torch.linalg.solve(V, r)
                     self.score.append(((y[valid] - pred) ** 2).mean().item())
                 message += f"  validation MSE {self.score[-1]:.4f}"
 
                 if self.score[-1] < best_mse:
                     best_mse, best_epoch = self.score[-1], epoch
                     best = (
-                        copy.deepcopy(self.network.state_dict()),
+                        [copy.deepcopy(network.state_dict()) for network in networks],
                         self.beta.detach().clone(),
                         [p.detach().clone() for p in self.params],
                     )
@@ -222,98 +234,46 @@ class MixedModelNN(MixedModel):
                 break
 
         if n_valid:
-            state, beta, params = best
-            self.network.load_state_dict(state)
+            states, beta, params = best
+            for network, state in zip(networks, states):
+                network.load_state_dict(state)
             self.beta.data.copy_(beta)
             for p, value in zip(self.params, params):
                 p.data.copy_(value)
 
-        # final embedding with the network frozen, then BLUE / BLUP / PEV
-        self.network.eval()
+        # networks frozen, then polish: REML if full, BLUE / BLUP / PEV
+        for network in networks:
+            network.eval()
         with torch.no_grad():
-            Z = self.embed()
-        Z_G = Z[:, :self.d]
-        self._Z = Z[self.keep]
+            self._Z = self.design()
+            embedded = {name: F.normalize(emb.network(), dim=1).to(self.dtype) for name, emb in self.embedding.items()}
 
-        # polish
-        self.REML()
+        if self.full:
+            self.REML()
         self.HMME()
 
-        uhat = self.uhat.detach().to(self.dtype)
-        self.uhat_general = uhat[:self.d].flatten()
-        self.var_G = self.params[0].exp().item()
-        self.var_R = self.params[1].exp().item()
-        # variance ratio lambda = var(embedding dimension) / var(unit), on every row of data:
-        # 1 / sum_j var(z_j), the embedding analog of 1 / sum_i 2 p_i (1 - p_i) for SNPs
-        self.var_ratio = 1 / Z_G.var(dim=0).sum().item()
-        self.var_G_unit = self.var_G / self.var_ratio
-        self.var_R_unit = self.var_R
-        # genetic value of every row of data, missing responses included
-        self.prediction = (Z @ uhat).flatten()
-
-        # PCA of the raw and weighted embeddings
-        weighted = {
-            "Raw embeddings": Z_G,
-            "General weighted embeddings": Z_G * self.uhat_general,
-        }
-        if self.groups is not None:
-            self.uhat_specific = uhat[self.d:].reshape(len(self.levels), self.d)
-            self.var_S = self.params[2].exp().item()
-            self.var_S_unit = self.var_S / self.var_ratio
-            weighted["Specific weighted embeddings"] = Z_G * self.uhat_specific[self.codes]
-
-        self.pca = {}
-        for title, P in weighted.items():
-            Pc = P - P.mean(dim=0)
-            eigval, eigvec = torch.linalg.eigh(Pc.T @ Pc / (len(Pc) - 1))
-            eigval, eigvec = eigval.flip(0), eigvec.flip(1)
-            self.pca[title] = {
-                "coords": (Pc @ eigvec).cpu().numpy(),
-                "inertia": (100 * eigval / eigval.sum()).cpu().numpy(),
-                "eigvec": eigvec.cpu().numpy(),
-            }
+        for term in self.random:
+            term.format_variance()
+        self.residual.format_variance()
+        for term in self.random:
+            if isinstance(term, RandomNN):
+                term.summarize(embedded[term.embedding])
 
         return self
 
+    def compute_AIC(self, REML=True):
+        # called by HMME: no AIC, the networks are not fitted by maximum likelihood
+        pass
+
     def varcomp(self):
-        """Raw variances (per embedding dimension) and unit variances (per individual, GBLUP-like)."""
-        varcomp = pd.DataFrame(
-            {"raw": [self.var_G, self.var_R], "unit": [self.var_G_unit, self.var_R_unit]},
-            index=["G", "R"],
-        )
-        if self.groups is not None:
-            varcomp.loc["S"] = [self.var_S, self.var_S_unit]
-        return varcomp
-
-    def plot(self, plan: tuple[int, int] = (0, 1)):
-        i, j = plan
-
-        # one PCA panel per embedding, plus a dedicated legend panel when there are groups
-        n_pca, legend = len(self.pca), self.specificity is not None
-        fig, axes = plt.subplots(
-            1, n_pca + legend,
-            figsize=(6 * n_pca + 3 * legend, 6),
-            width_ratios=[6] * n_pca + [3] * legend,
-            squeeze=False,
-        )
-        # continuous palette: one distinct color per level, however many levels
-        colors = plt.cm.turbo(np.random.default_rng(0).permutation(np.linspace(0, 1, len(self.levels))))
-        for ax, (title, pca) in zip(axes[0], self.pca.items()):
-            for g, level in enumerate(self.levels):
-                ax.scatter(pca["coords"][self.codes == g, i], pca["coords"][self.codes == g, j], color=colors[g], label=level, alpha=0.7)
-            ax.axhline(0, color="grey", lw=0.5)
-            ax.axvline(0, color="grey", lw=0.5)
-            ax.set_xlabel(f"PC{i + 1} ({pca['inertia'][i]:.1f} %)")
-            ax.set_ylabel(f"PC{j + 1} ({pca['inertia'][j]:.1f} %)")
-            ax.set_title(f"Individual projections\n{title}")
-        if legend:
-            axes[0, -1].axis("off")
-            axes[0, -1].legend(
-                *axes[0, 0].get_legend_handles_labels(),
-                loc="center left",
-                ncol=1 + len(self.levels) // 25,
-                fontsize=8,
-                frameon=False,
-            )
-        plt.tight_layout()
-        plt.show()
+        """Raw variances (per embedding dimension for a RandomNN) and unit variances (per individual, GBLUP-like)."""
+        rows = {}
+        for term in self.random:
+            if isinstance(term, RandomNN):
+                rows[term.label] = [term.var, term.var_unit]
+            else:
+                var = float(np.squeeze(term.variance["sigma"]))
+                rows[term.effect_label] = [var, var]
+        var_R = float(np.squeeze(self.residual.variance["sigma"]))
+        rows["R"] = [var_R, var_R]
+        return pd.DataFrame.from_dict(rows, orient="index", columns=["raw", "unit"])

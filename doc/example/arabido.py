@@ -188,10 +188,8 @@ plt.close(fig)
 with torch.no_grad():
     nn_embedding = nn_alone.embed(z)            # embedding of every accession
     nn_prediction = nn_alone.head(nn_embedding)  # missing DTF1 included
-    nn_weighted = nn_embedding * nn_alone.head[0].weight.flatten()  # row sums + bias = prediction
 
 save_cloud(*pca(nn_embedding), "nn_embedding")
-save_cloud(*pca(nn_weighted), "nn_weighted")
 
 # %%
 # RR-BLUP: ridge regression on the markers, y = 1 mu + M a + e, a ~ N(0, s2_a I)

@@ -84,14 +84,6 @@ Principal components of the embeddings $e$ of the network trained alone.
 :::
 
 Entirely built for the prediction, their space collapses to a single dimension, parallel to $\hat y$.
-The same pattern is observed for $e \odot w$, whose row sums are $\hat y - b$.
-
-::: {#fig-nn-weighted}
-<div class="cloud3d" data-src="widgets/nn_weighted.json"></div>
-
-Principal components of the weighted embeddings $e \odot w$ of the network trained alone.
-:::
-
 
 ## Mixed model with a neural network
 

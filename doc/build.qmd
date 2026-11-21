@@ -75,7 +75,7 @@ The network is user-defined, under the following contract:
 
 - `network()` returns the $n \times d$ embedding of every row of `data`, in the same order.
 - `network(rows)`, with `rows` a boolean mask over the rows of `data`, returns the embeddings of the selected rows only. Training feeds the labelled rows of each minibatch alone, so that batch statistics (*e.g.* BatchNorm) never see the others.
-- The model runs in the dtype and on the device of the output of `network()`, shared by all networks.
+- The networks run in their own dtype, and must share their device. The mixed model runs in double on that device: in float32, the REML of a minibatch is too ill-conditioned, notably with qualitative fixed effects.
 
 The features $z$ are typically stored in the network as a buffer:
 
@@ -158,7 +158,7 @@ After `.fit()` (see [Training models](training.qmd)):
 |--------------------------------|-------------------------------------------------------------------------|
 | `model.estimates`              | Fixed-effect estimates (BLUE) as a long table `response · term · estimate · SE · t`. |
 | `model.PEV`                    | Prediction error variance of $[\hat u_1, \hat u_2, \dots]$.                      |
-| `model.residuals`              | Residuals of the labelled rows.                                                  |
+| `model.residual`               | The [pyreml]{.pyreml} `Residual`: `.residuals` and `.table` of the labelled rows, `.variance`. |
 | `model.varcomp()`              | Raw and unit variances, one row per term and the residual last (see [Deep kernel](deep_kernel.qmd)). |
 | `model.loss`, `model.score`    | Training curves (see [Monitoring](training.qmd#monitoring)).                     |
 | `model.random[j]`              | The $j$-th random effect, in the order of `random`.                              |

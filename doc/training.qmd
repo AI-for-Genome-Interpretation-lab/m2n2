@@ -103,7 +103,7 @@ The model is then a linear mixed model with a known random design, refitted by [
 - [REML](https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#reml) re-estimates $\beta$ and the variances, by L-BFGS with its adaptive convergence criterion;
 - [HMME](https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#hmme) gives the BLUE of $\beta$, the BLUP of every $u_j$, and their error variances.
 
-Both run in the dtype of the networks output.
+Both run in double, as the whole mixed model.
 With `full = False` (see [Building models](build.qmd#the-from_dataframe-constructor)), the REML is skipped: HMME runs on the variances at the end of training (restored state with `validation`).
 
 ## Monitoring

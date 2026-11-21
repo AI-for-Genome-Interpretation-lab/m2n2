@@ -77,7 +77,6 @@ def test_convergence_network(model):
     assert 10 <= np.argmin(model.score) <= 90
 
 
-@pytest.mark.xfail(reason="the REML polish runs in float32, whose digit budget is too short to declare convergence")
 def test_convergence_REML(model):
     assert model.opti_REML.converged
 
