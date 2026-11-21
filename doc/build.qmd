@@ -26,7 +26,7 @@ model.fit()
 | `data`        | One row per individual.                                                                        |
 | `response`    | One response column.                                                                           |
 | `Z`           | The network $\nu$, an `nn.Module` returning the embeddings (see [the network](#the-network)). |
-| `specificity` | Qualitative column defining the $q$ groups of $Z_S$. Defaults to `None`: no group-specific effect. |
+| `specificity` | A qualitative column, or a list of them, each defining the $q_k$ groups of its own specific effect $Z_{S_k} u_{S_k}$. Defaults to `None`: no group-specific effect. |
 | `fixed`       | A [patsy](https://pypi.org/project/patsy/) formula for $X$. Defaults to the intercept `"1"`.  |
 | `optimizer`   | A `torch.optim` optimizer, LBFGS excepted, as a factory of the parameter groups. Defaults to `partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)`. |
 | `lr_beta`     | Learning rate of $\beta$. Defaults to the optimizer's.                                        |
@@ -60,13 +60,14 @@ Dropout and BatchNorm belong to the network: [m2n2]{.m2n2} switches it to `train
 
 - A row missing the response is left out of the fit, but still predicted.
 - A row missing a fixed covariate is left out of the fit.
-- `specificity` must be qualitative and complete: numeric codes are to be cast to `str`.
+- Each `specificity` column must be qualitative and complete: numeric codes are to be cast to `str`.
 
-The random design $[Z_G \mid Z_S]$ has $d(1 + q)$ columns, $d$ without `specificity`.
+The specificities are independent: each one adds its own block $Z_{S_k}$, built on the same embedding $Z_G$, and its own variance $\sigma^2_{S_k}$.
+The random design $[Z_G \mid Z_{S_1} \mid \dots \mid Z_{S_m}]$ has $d(1 + \sum_k q_k)$ columns, $d$ without `specificity`.
 
 ## Initialization
 
-The variances $\sigma^2_G$, $\sigma^2_S$ and $\sigma^2_R$ are log-parameterized and initialized at the variance of the response.
+The variances $\sigma^2_G$, $\sigma^2_{S_k}$ and $\sigma^2_R$ are log-parameterized and initialized at the variance of the response.
 $\beta$ is initialized by ordinary least squares on the labelled rows.
 
 `optimizer` is called on four parameter groups:
@@ -84,15 +85,27 @@ After `.fit()` (see [Training models](training.qmd)):
 
 | Accessor                       | Content                                                                 |
 |--------------------------------|-------------------------------------------------------------------------|
-| `model.prediction`             | $Z_G \hat u_G + Z_S \hat u_S$ for every row of `data`, missing responses included. Fixed effects excluded. |
+| `model.prediction`             | $Z_G \hat u_G + \sum_k Z_{S_k} \hat u_{S_k}$ for every row of `data`, missing responses included. Fixed effects excluded. |
 | `model.estimates`              | Fixed-effect estimates (BLUE) as a long table `response · term · estimate · SE · t`. |
 | `model.uhat_general`           | $\hat u_G$, of shape `(d,)`.                                                     |
-| `model.uhat_specific`          | $\hat u_S$, of shape `(q, d)`, one row per level of `model.levels`.             |
-| `model.PEV`                    | Prediction error variance of $[\hat u_G, \hat u_S]$.                             |
+| `model.specificity`            | The list of the specificity columns, empty without `specificity`.                 |
+| `model.levels`, `model.codes`  | Per specificity: its levels, and the level code of each row of `data`.            |
+| `model.uhat_specific`          | Per specificity: $\hat u_{S_k}$, of shape `(q_k, d)`, one row per level of `model.levels[k]`. |
+| `model.PEV`                    | Prediction error variance of $[\hat u_G, \hat u_{S_1}, \dots, \hat u_{S_m}]$.   |
 | `model.residuals`              | Residuals of the labelled rows.                                                  |
-| `model.varcomp()`              | Raw and unit variances (see [Deep kernel](deep_kernel.qmd)).                     |
+| `model.varcomp()`              | Raw and unit variances, rows `G`, `R` and `S:<specificity>` (see [Deep kernel](deep_kernel.qmd)). |
 | `model.AIC`                    | Akaike information criterion, post REML.                                         |
 | `model.loss`, `model.score`    | Training curves (see [Monitoring](training.qmd#monitoring)).                |
-| `model.pca`                    | PCA of the raw and weighted embeddings: `coords`, `inertia`, `eigvec` per embedding. |
-| `model.plot(plan=(0, 1))`      | Individual projections on the principal plan `plan`, colored by group.        |
+| `model.pca`                    | PCA of the raw, general weighted and specific weighted embeddings (`"Specific weighted embeddings (<specificity>)"`): `coords`, `inertia`, `eigvec` per embedding. |
+| `model.plot(plan=(0, 1), focus=None)` | Individual projections on the principal plan `plan` (see [Plots](#plots)).  |
+
+### Plots
+
+`model.plot()` adapts to the number of specificities:
+
+- none: the raw and general weighted embeddings, monochrome;
+- one: the raw, general and specific weighted embeddings, colored by group, and the legend;
+- several: the raw and general weighted embeddings, monochrome, then one row per specificity, with its specific weighted embeddings colored by its groups, and its legend.
+
+`focus`, the index or the name of a specificity, restricts the plot to it, as with a single specificity.
 

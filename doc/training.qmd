@@ -41,7 +41,7 @@ y \sim N\big(X\beta,\ V\big),
 V = \sigma^2_G Z_G Z_G^\top + \sigma^2_S Z_S Z_S^\top + \sigma^2_R I,
 $$
 
-with $Z_G = \nu(z, \theta)$.
+for a single specificity, with $Z_G = \nu(z, \theta)$.
 The network parameters $\theta$ only enter $V$: like $\sigma^2_G$, $\sigma^2_S$ and $\sigma^2_R$, they are variance parameters, estimated jointly with $\beta$ by restricted maximum of likelihood (REML):
 
 $$

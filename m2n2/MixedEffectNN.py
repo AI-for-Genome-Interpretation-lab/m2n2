@@ -14,12 +14,13 @@ from pyreml import MixedModel
 
 class MixedModelNN(MixedModel):
     """
-    y = X beta + Z u_G + Z_S u_S + e, with u_G ~ N(0, s2_G I), u_S ~ N(0, s2_S I),
-    e ~ N(0, s2_R I). Z is the embedding returned by the network Z(), rows
-    projected on the unit sphere (||z_i||^2 = 1) so that the variances are
-    identifiable. Z_S = [Z * 1{group A} | Z * 1{group B} | ...], with the groups
-    given by the qualitative column `specificity`; without it, the model reduces
-    to y = X beta + Z u_G + e. The network is trained jointly with beta and the
+    y = X beta + Z u_G + sum_k Z_Sk u_Sk + e, with u_G ~ N(0, s2_G I),
+    u_Sk ~ N(0, s2_Sk I), e ~ N(0, s2_R I). Z is the embedding returned by the
+    network Z(), rows projected on the unit sphere (||z_i||^2 = 1) so that the
+    variances are identifiable. Z_Sk = [Z * 1{group A} | Z * 1{group B} | ...],
+    with the groups given by the k-th qualitative column of `specificity`, each
+    specificity independent of the others; without any, the model reduces to
+    y = X beta + Z u_G + e. The network is trained jointly with beta and the
     variances on the REML loss.
 
     Z() must return one embedding per row of data, in the same order: aligning
@@ -37,7 +38,7 @@ class MixedModelNN(MixedModel):
         data: pd.DataFrame,
         response: str,
         Z: nn.Module,
-        specificity: str | None = None,
+        specificity: str | list[str] | None = None,
         fixed: str = "1",
         optimizer=partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1),
         lr_beta: float | None = None,
@@ -56,15 +57,18 @@ class MixedModelNN(MixedModel):
             raise ValueError(f"Z() returns {Z_all.shape[0]} rows, data has {len(data)}")
 
         labelled = data[response].notna()
-        if specificity is None:
-            codes, levels, groups = np.zeros(len(data), dtype=int), [None], None
-        else:
-            if pd.api.types.is_numeric_dtype(data[specificity]):
-                raise ValueError(f"specificity column '{specificity}' must be qualitative, got {data[specificity].dtype}")
-            if data[specificity].isna().any():
-                raise ValueError(f"specificity column '{specificity}' has {data[specificity].isna().sum()} missing values")
-            codes, levels = pd.factorize(data[specificity])
-            groups = torch.tensor(codes[:, None] == np.arange(len(levels)), dtype=dtype, device=device)
+        specificity = [specificity] if isinstance(specificity, str) else list(specificity or [])
+        if len(set(specificity)) < len(specificity):
+            raise ValueError(f"duplicated specificity columns: {specificity}")
+        codes, levels, groups = {}, {}, {}
+        for s in specificity:
+            if pd.api.types.is_numeric_dtype(data[s]):
+                raise ValueError(f"specificity column '{s}' must be qualitative, got {data[s].dtype}")
+            if data[s].isna().any():
+                raise ValueError(f"specificity column '{s}' has {data[s].isna().sum()} missing values")
+            codes[s], levels[s] = pd.factorize(data[s])
+            levels[s] = list(levels[s])
+            groups[s] = torch.tensor(codes[s][:, None] == np.arange(len(levels[s])), dtype=dtype, device=device)
 
         dm = patsy.dmatrix(fixed, data=data[labelled], NA_action="drop", return_type="dataframe")
         keep = torch.as_tensor(data.index.isin(dm.index), device=device)
@@ -73,29 +77,30 @@ class MixedModelNN(MixedModel):
         X = torch.tensor(dm.to_numpy(), dtype=dtype, device=device)
 
         d = Z_all.shape[1]
-        n_groups = 0 if groups is None else groups.shape[1]
+        n_groups = [len(levels[s]) for s in specificity]
 
         log_v0 = float(np.log(y.var().item()))
         log_sG = torch.tensor(log_v0, dtype=dtype, device=device, requires_grad=True)
         log_sR = torch.tensor(log_v0, dtype=dtype, device=device, requires_grad=True)
-        log_sS = torch.tensor(log_v0, dtype=dtype, device=device, requires_grad=True)
-        varparams = [log_sG, log_sR] + ([log_sS] if n_groups else [])
+        log_sS = [torch.tensor(log_v0, dtype=dtype, device=device, requires_grad=True) for _ in specificity]
+        varparams = [log_sG, log_sR] + log_sS
 
         # pyreml picks the path: Woodbury (varmeth_inv) if q < n, direct (varmeth) otherwise
         def varmeth(self):
-            g = torch.cat([torch.exp(log_sG).repeat(d), torch.exp(log_sS).repeat(n_groups * d)])
+            g = torch.cat([torch.exp(log_sG).repeat(d)] + [torch.exp(log_s).repeat(n * d) for log_s, n in zip(log_sS, n_groups)])
             R = torch.exp(log_sR) * torch.eye(self.n, dtype=self.dtype, device=self.device)
             return torch.diag(g), R
 
         def varmeth_inv(self):
-            ginv = torch.cat([torch.exp(-log_sG).repeat(d), torch.exp(-log_sS).repeat(n_groups * d)])
+            ginv = torch.cat([torch.exp(-log_sG).repeat(d)] + [torch.exp(-log_s).repeat(n * d) for log_s, n in zip(log_sS, n_groups)])
             Rinv = torch.exp(-log_sR) * torch.eye(self.n, dtype=self.dtype, device=self.device)
-            return torch.diag(ginv), Rinv, d * log_sG + n_groups * d * log_sS, self.n * log_sR
+            logdetG = d * log_sG + sum(n * d * log_s for log_s, n in zip(log_sS, n_groups))
+            return torch.diag(ginv), Rinv, logdetG, self.n * log_sR
 
         mm = cls(
             y = y,
             X = X,
-            q = d * (1 + n_groups),
+            q = d * (1 + sum(n_groups)),
             params      = varparams,
             varmeth     = varmeth,
             varmeth_inv = varmeth_inv,
@@ -112,7 +117,7 @@ class MixedModelNN(MixedModel):
         mm.specificity = specificity
         mm.groups = groups
         mm.codes = codes
-        mm.levels = list(levels)
+        mm.levels = levels
         mm.d = d
         mm.optimizer = optimizer([
             {"params": # network weights (matrices, kernels): shrunk
@@ -145,10 +150,11 @@ class MixedModelNN(MixedModel):
 
     def embed(self, rows=None):
         Z = F.normalize(self.network(rows), dim=1)
-        if self.groups is not None:
-            g = self.groups if rows is None else self.groups[rows]
-            Z = torch.cat([Z, (g[:, :, None] * Z[:, None, :]).flatten(1)], dim=1)
-        return Z
+        blocks = [Z]
+        for g in self.groups.values():
+            g = g if rows is None else g[rows]
+            blocks.append((g[:, :, None] * Z[:, None, :]).flatten(1))
+        return torch.cat(blocks, dim=1)
 
     def fit(
         self,
@@ -256,11 +262,16 @@ class MixedModelNN(MixedModel):
             "Raw embeddings": Z_G,
             "General weighted embeddings": Z_G * self.uhat_general,
         }
-        if self.groups is not None:
-            self.uhat_specific = uhat[self.d:].reshape(len(self.levels), self.d)
-            self.var_S = self.params[2].exp().item()
-            self.var_S_unit = self.var_S / self.var_ratio
-            weighted["Specific weighted embeddings"] = Z_G * self.uhat_specific[self.codes]
+        # one block of uhat, one variance per specificity, in the order of self.specificity
+        self.uhat_specific, self.var_S, self.var_S_unit = {}, {}, {}
+        start = self.d
+        for k, s in enumerate(self.specificity):
+            n = len(self.levels[s])
+            self.uhat_specific[s] = uhat[start:start + n * self.d].reshape(n, self.d)
+            start += n * self.d
+            self.var_S[s] = self.params[2 + k].exp().item()
+            self.var_S_unit[s] = self.var_S[s] / self.var_ratio
+            weighted[f"Specific weighted embeddings ({s})"] = Z_G * self.uhat_specific[s][self.codes[s]]
 
         self.pca = {}
         for title, P in weighted.items():
@@ -281,39 +292,67 @@ class MixedModelNN(MixedModel):
             {"raw": [self.var_G, self.var_R], "unit": [self.var_G_unit, self.var_R_unit]},
             index=["G", "R"],
         )
-        if self.groups is not None:
-            varcomp.loc["S"] = [self.var_S, self.var_S_unit]
+        for s in self.specificity:
+            varcomp.loc[f"S:{s}"] = [self.var_S[s], self.var_S_unit[s]]
         return varcomp
 
-    def plot(self, plan: tuple[int, int] = (0, 1)):
+    def plot(self, plan: tuple[int, int] = (0, 1), focus: int | str | None = None):
+        """
+        Without specificity: raw and general weighted embeddings, monochrome.
+        One specificity, or `focus` (index or name of a specificity): raw, general and specific
+        weighted embeddings colored by its groups, and its legend.
+        Several specificities without `focus`: raw and general weighted embeddings monochrome,
+        then one row per specificity, its specific weighted embeddings and its legend.
+        """
         i, j = plan
 
-        # one PCA panel per embedding, plus a dedicated legend panel when there are groups
-        n_pca, legend = len(self.pca), self.specificity is not None
-        fig, axes = plt.subplots(
-            1, n_pca + legend,
-            figsize=(6 * n_pca + 3 * legend, 6),
-            width_ratios=[6] * n_pca + [3] * legend,
-            squeeze=False,
-        )
-        # continuous palette: one distinct color per level, however many levels
-        colors = plt.cm.turbo(np.random.default_rng(0).permutation(np.linspace(0, 1, len(self.levels))))
-        for ax, (title, pca) in zip(axes[0], self.pca.items()):
-            for g, level in enumerate(self.levels):
-                ax.scatter(pca["coords"][self.codes == g, i], pca["coords"][self.codes == g, j], color=colors[g], label=level, alpha=0.7)
+        if focus is None and len(self.specificity) == 1:
+            focus = 0
+        if isinstance(focus, int):
+            if not -len(self.specificity) <= focus < len(self.specificity):
+                raise ValueError(f"focus {focus} out of range, {len(self.specificity)} specificities")
+            focus = self.specificity[focus]
+        if focus is not None and focus not in self.specificity:
+            raise ValueError(f"focus '{focus}' is not a specificity: {self.specificity}")
+
+        def scatter(ax, title, s=None):
+            coords = self.pca[title]["coords"]
+            if s is None:
+                ax.scatter(coords[:, i], coords[:, j], color="C0", alpha=0.7)
+            else:
+                # continuous palette: one distinct color per level, however many levels
+                colors = plt.cm.turbo(np.random.default_rng(0).permutation(np.linspace(0, 1, len(self.levels[s]))))
+                for g, level in enumerate(self.levels[s]):
+                    ax.scatter(coords[self.codes[s] == g, i], coords[self.codes[s] == g, j], color=colors[g], label=level, alpha=0.7)
             ax.axhline(0, color="grey", lw=0.5)
             ax.axvline(0, color="grey", lw=0.5)
-            ax.set_xlabel(f"PC{i + 1} ({pca['inertia'][i]:.1f} %)")
-            ax.set_ylabel(f"PC{j + 1} ({pca['inertia'][j]:.1f} %)")
+            ax.set_xlabel(f"PC{i + 1} ({self.pca[title]['inertia'][i]:.1f} %)")
+            ax.set_ylabel(f"PC{j + 1} ({self.pca[title]['inertia'][j]:.1f} %)")
             ax.set_title(f"Individual projections\n{title}")
-        if legend:
-            axes[0, -1].axis("off")
-            axes[0, -1].legend(
-                *axes[0, 0].get_legend_handles_labels(),
+
+        def legend(ax, source, s):
+            ax.axis("off")
+            ax.legend(
+                *source.get_legend_handles_labels(),
                 loc="center left",
-                ncol=1 + len(self.levels) // 25,
+                ncol=1 + len(self.levels[s]) // 25,
                 fontsize=8,
                 frameon=False,
             )
+
+        general = ["Raw embeddings", "General weighted embeddings"]
+        if focus is not None:
+            fig, axes = plt.subplots(1, 4, figsize=(21, 6), width_ratios=[6, 6, 6, 3])
+            for ax, title in zip(axes, general + [f"Specific weighted embeddings ({focus})"]):
+                scatter(ax, title, focus)
+            legend(axes[3], axes[0], focus)
+        else:
+            n_rows = 1 + len(self.specificity)
+            fig, axes = plt.subplots(n_rows, 2, figsize=(12, 6 * n_rows), squeeze=False)
+            for ax, title in zip(axes[0], general):
+                scatter(ax, title)
+            for (ax, ax_legend), s in zip(axes[1:], self.specificity):
+                scatter(ax, f"Specific weighted embeddings ({s})", s)
+                legend(ax_legend, ax, s)
         plt.tight_layout()
         plt.show()
