@@ -1,5 +1,7 @@
 <h1 align="center">
+<a href="https://ai-for-genome-interpretation-lab.github.io/m2n2">
 <img width="750" alt="m2n2" src="https://raw.githubusercontent.com/AI-for-Genome-Interpretation-lab/m2n2/main/doc/img/banner.png" />
+</a>
 </h1>
 
 <p>
@@ -25,19 +27,22 @@ pip install m2n2
 **m2n2** fits a linear mixed model built upon the neural network $\nu$ of parameters $\theta$:
 
 $$
-y = X\beta + Z_G u_G + Z_S u_S + r
+y = X\beta + Zu + r
 \qquad
 z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d
 $$
 
-- $X$: fixed effects design matrix, provided from a `patsy` formula.
-- $\beta$: fixed effects.
-- $z_i$: features of individual $i$ (e.g. SNPs).
-- $Z_G = \nu(z, \theta)$: general design matrix, embedding of the features by the network of dimension $n \times d$.
-- $Z_S = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta)$: specific design matrix of dimension $n \times qd$ for the $q$ groups.
-- $u_G \sim N(0, \sigma^2_G I), u_G \in \mathbb{R}^d$: general embedding effects.
-- $u_S \sim N(0, \sigma^2_S I), u_{S} \in \mathbb{R}^{qd}$: group-specific embedding effects (optional).
-- $r \sim N(0, \sigma^2_R I)$: residual.
+- $y$: a quantitative continuous label.
+- $X$: the fixed effects design matrix, provided from a `patsy` formula.
+- $\beta$: the fixed effects.
+- $z_i$: features of individual $i$.
+- $Z = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta), Z \in \mathbb{R}^{n \times qd}$: the random effects design matrix, or matrix of embeddings, for all $n$ individuals from $q$ distinct groups.
+- $u \sim N(0, \sigma^2_u I), u \in \mathbb{R}^{qd}$: the embedding effects, with an embedding effect vector $u_k$ for each of the $q$ groups.
+- $r \sim N(0, \sigma^2_R I)$: the residual.
+
+Several random effects based on neural networks can be provided, either referring to the same neural network, the same features, or not.
+
+Additional random effects following the **pyreml** specification system can also be provided.
 
 ## Example
 
@@ -49,7 +54,8 @@ import torch
 import torch.nn as nn
 from meiosim import Arabidopsis
 from meiosim.Population import MISSING
-from m2n2 import MixedModelNN
+from m2n2 import MixedModelNN, Embedding, RandomNN
+from pyreml import Random, Residual
 
 pop = Arabidopsis(n_SNPs=10_000, seed=42)
 data = pop.phenotypes[["individual", "DTF1"]].merge(
@@ -79,14 +85,28 @@ network = Network(z) # /!\ z and data must be perfectly aligned
 
 model = MixedModelNN.from_dataframe(
     data,
-    response="DTF1",
-    Z=network,
-    specificity="country",
-    optimizer=partial(
-        torch.optim.AdamW,
-        lr=1e-3,
-        weight_decay=1e-1
-    ),
+    response = "DTF1",
+    fixed = "1 + country",
+    embedding = {
+        "geno": Embedding(
+            network,
+            optimizer = partial(
+                torch.optim.AdamW,
+                lr=1e-3,
+                weight_decay=1e-1
+            )
+        )
+    },
+    random = [
+        RandomNN(
+            embedding = "geno",
+        ),
+        RandomNN(
+            embedding = "geno",
+            group = "country",
+        )
+    ],
+    residual = Residual(),
     lr_beta=1e-2,
     lr_var=1e-2,
 )
@@ -110,7 +130,8 @@ ax_score.set_xlabel("epoch")
 ax_score.set_ylabel("validation MSE")
 plt.show()
 
-model.plot()
+model.random[0].plot(group_by = "country")
+model.random[1].plot()
 
 model.varcomp()
 ```

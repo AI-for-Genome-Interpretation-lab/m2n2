@@ -2,43 +2,80 @@
 title: "Building models"
 ---
 
-[m2n2]{.m2n2} builds a model with `MixedModelNN.from_dataframe()`, from a [pandas](https://pandas.pydata.org/) DataFrame and a [PyTorch](https://pytorch.org/) network.
+[m2n2]{.m2n2} builds a model with `MixedModelNN.from_dataframe()`, from a [pandas](https://pandas.pydata.org/) DataFrame and one or several [PyTorch](https://pytorch.org/) networks.
 
 ## The from_dataframe constructor
 
 ```python
 model = MixedModelNN.from_dataframe(
-    data        = data,
-    response    = "DTF1",
-    Z           = network,
-    specificity = "country",
-    fixed       = "1",
-    optimizer   = partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1),
-    lr_beta     = 1e-2,
-    lr_var      = 1e-2,
+    data      = data,
+    response  = "DTF1",
+    fixed     = "1 + country",
+    embedding = {
+        "geno": Embedding(
+            network,
+            optimizer = partial(
+                torch.optim.AdamW,
+                lr = 1e-3,
+                weight_decay = 1e-1
+            )
+        ),
+    },
+    random = [
+        RandomNN(
+            embedding = "geno"
+        ),
+        RandomNN(
+            embedding = "geno",
+            group = "country"
+        ),
+    ],
+    residual  = Residual(),
+    lr_beta   = 1e-2,
+    lr_var    = 1e-2,
 )
 
 model.fit()
 ```
 
-| Argument      | Meaning                                                                                       |
-|---------------|-----------------------------------------------------------------------------------------------|
-| `data`        | One row per individual.                                                                        |
-| `response`    | One response column.                                                                           |
-| `Z`           | The network $\nu$, an `nn.Module` returning the embeddings (see [the network](#the-network)). |
-| `specificity` | Qualitative column defining the $q$ groups of $Z_S$. Defaults to `None`: no group-specific effect. |
-| `fixed`       | A [patsy](https://pypi.org/project/patsy/) formula for $X$. Defaults to the intercept `"1"`.  |
-| `optimizer`   | A `torch.optim` optimizer, LBFGS excepted, as a factory of the parameter groups. Defaults to `partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)`. |
-| `lr_beta`     | Learning rate of $\beta$. Defaults to the optimizer's.                                        |
-| `lr_var`      | Learning rate of the variances. Defaults to the optimizer's.                                  |
+| Argument    | Meaning                                                                                       |
+|-------------|-----------------------------------------------------------------------------------------------|
+| `data`      | One row per individual.                                                                        |
+| `response`  | One response column.                                                                           |
+| `fixed`     | A [patsy](https://pypi.org/project/patsy/) formula for $X$. Defaults to the intercept `"1"`.  |
+| `embedding` | The networks, as a dictionary of named [`Embedding`](#embeddings).                             |
+| `random`    | The random effects, a list of [`RandomNN`](#neural-random-effects) and [pyreml]{.pyreml} [`Random`](#other-random-effects) terms. |
+| `residual`  | The residual, a [pyreml]{.pyreml} `Residual`. Defaults to `Residual()`: $\sigma^2_R I$.       |
+| `lr_beta`   | Learning rate of $\beta$. Defaults to 1e-3.                                                    |
+| `lr_var`    | Learning rate of the variances. Defaults to 1e-3.                                              |
+| `full`      | Runs the [pyreml]{.pyreml} [initialization](#initialization) and the REML of the [polish](training.qmd#polish). Defaults to `True`; `False` skips both, for datasets too large for them. |
 
-## The network
+## Embeddings
+
+An `Embedding` wraps a network and its optimizer:
+
+```python
+Embedding(
+    network,
+    optimizer = partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1),
+)
+```
+
+| Argument    | Meaning                                                                                       |
+|-------------|-----------------------------------------------------------------------------------------------|
+| `network`   | The network $\nu$, an `nn.Module` returning the embeddings (see [the network](#the-network)). |
+| `optimizer` | A `torch.optim` optimizer, LBFGS excepted, as a factory of the parameter groups. Defaults to `partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)`. |
+
+Its name in `embedding` is the handle by which the random effects refer to it.
+Several random effects can share the same embedding: the network is then embedded once per minibatch, and stepped once by its optimizer.
+
+### The network
 
 The network is user-defined, under the following contract:
 
-- `Z()` returns the $n \times d$ embedding of every row of `data`, in the same order. Aligning the two is the user's responsibility: only the number of rows is checked.
-- `Z(rows)`, with `rows` a boolean mask over the rows of `data`, returns the embeddings of the selected rows only. Training feeds the labelled rows of each minibatch alone, so that batch statistics (*e.g.* BatchNorm) never see the others.
-- The model runs in the dtype and on the device of the output of `Z()`.
+- `network()` returns the $n \times d$ embedding of every row of `data`, in the same order.
+- `network(rows)`, with `rows` a boolean mask over the rows of `data`, returns the embeddings of the selected rows only. Training feeds the labelled rows of each minibatch alone, so that batch statistics (*e.g.* BatchNorm) never see the others.
+- The networks must share their device. The mixed model runs in double on that device; the networks keep their own dtype.
 
 The features $z$ are typically stored in the network as a buffer:
 
@@ -53,30 +90,65 @@ class Network(nn.Module):
         return self.body(self.z if rows is None else self.z[rows])
 ```
 
+Different embeddings can read the same features, or different ones, *e.g.* SNPs and gene expressions.
+
 The embeddings are projected on the unit sphere before entering the mixed model (see [Deep kernel](deep_kernel.qmd)).
 Dropout and BatchNorm belong to the network: [m2n2]{.m2n2} switches it to `train()` mode for the gradient steps, and to `eval()` mode for validation and prediction.
+
+## Neural random effects
+
+A `RandomNN` term is a random effect $Z_j u_j$ built upon an embedding:
+
+```python
+RandomNN(
+    embedding = "geno",
+    group     = None,
+)
+```
+
+| Argument    | Meaning                                                                                       |
+|-------------|-----------------------------------------------------------------------------------------------|
+| `embedding` | Name of the embedding, a key of the `embedding` dictionary.                                    |
+| `group`     | Qualitative column defining the $q_j$ groups of the term. Defaults to `None`: a single group, the general effect. |
+
+With $Z = \nu(z, \theta)$ the embedding, the term reads:
+
+- $Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)$, of dimension $n \times q_j d$: the embedding of each individual in the columns of its group, zeros elsewhere;
+- $u_j \sim N(0, \sigma^2_{u_j} I)$, $u_j \in \mathbb{R}^{q_j d}$: one embedding effect vector per group.
+
+Without `group`, $Z_j = Z$: the effects $u_j$ are shared by all individuals.
+With `group`, each group receives its own effects: combined with a general term on the same embedding, they capture what is specific to the group (see [Deep kernel](deep_kernel.qmd)).
+The terms are independent: several groupings, crossed or nested, are as many terms.
+
+## Other random effects
+
+Any [pyreml]{.pyreml} `Random` term, *e.g.* a pedigree or an environmental effect, can be added to `random`, as well as any `Residual` structure.
+They follow the [pyreml specification system](https://ai-for-genome-interpretation-lab.github.io/pyreml/building_models.html), and their design is fixed during training.
 
 ## Data layout and missing values
 
 - A row missing the response is left out of the fit, but still predicted.
 - A row missing a fixed covariate is left out of the fit.
-- `specificity` must be qualitative and complete: numeric codes are to be cast to `str`.
+- `group` must be qualitative and complete: numeric codes are to be cast to `str`.
 
-The random design $[Z_G \mid Z_S]$ has $d(1 + q)$ columns, $d$ without `specificity`.
+The random design $[Z_1 \mid Z_2 \mid \dots]$ has $\sum_j q_j d_j$ columns over the `RandomNN` terms, plus those of the `Random` terms.
 
 ## Initialization
 
-The variances $\sigma^2_G$, $\sigma^2_S$ and $\sigma^2_R$ are log-parameterized and initialized at the variance of the response.
-$\beta$ is initialized by ordinary least squares on the labelled rows.
+The model is first fitted by [pyreml]{.pyreml} without the `RandomNN` terms, on the labelled rows: it initializes $\beta$, and the variances of the `Random` terms and of the residual.
+The variances of the `RandomNN` terms are then initialized at the variance of the response.
+All variances are log-parameterized.
 
-`optimizer` is called on four parameter groups:
+With `full = False`, this first fit is skipped: $\beta$ is initialized by ordinary least squares on the labelled rows, and the variances of the `Random` terms and of the residual at their [pyreml]{.pyreml} initial values.
 
-| Group                                  | Parameters                   | Weight decay | Learning rate |
-|----------------------------------------|------------------------------|--------------|---------------|
-| Network weights                        | Tensors of dimension $\geq 2$ | `optimizer`  | `optimizer`   |
-| Network biases, normalization parameters | Vectors                    | 0            | `optimizer`   |
-| Fixed effects                          | $\beta$                      | 0            | `lr_beta`     |
-| Variances                              | $\log \sigma^2$              | 0            | `lr_var`      |
+The optimizer of each embedding is called on two parameter groups, and $\beta$ and the variances are stepped by Adam:
+
+| Group                                    | Parameters                    | Optimizer   | Weight decay | Learning rate |
+|------------------------------------------|-------------------------------|-------------|--------------|---------------|
+| Network weights                          | Tensors of dimension $\geq 2$ | `optimizer` | `optimizer`  | `optimizer`   |
+| Network biases, normalization parameters | Vectors                       | `optimizer` | 0            | `optimizer`   |
+| Fixed effects                            | $\beta$                       | Adam        | 0            | `lr_beta`     |
+| Variances                                | $\log \sigma^2$               | Adam        | 0            | `lr_var`      |
 
 ## The fitted model
 
@@ -84,15 +156,21 @@ After `.fit()` (see [Training models](training.qmd)):
 
 | Accessor                       | Content                                                                 |
 |--------------------------------|-------------------------------------------------------------------------|
-| `model.prediction`             | $Z_G \hat u_G + Z_S \hat u_S$ for every row of `data`, missing responses included. Fixed effects excluded. |
 | `model.estimates`              | Fixed-effect estimates (BLUE) as a long table `response · term · estimate · SE · t`. |
-| `model.uhat_general`           | $\hat u_G$, of shape `(d,)`.                                                     |
-| `model.uhat_specific`          | $\hat u_S$, of shape `(q, d)`, one row per level of `model.levels`.             |
-| `model.PEV`                    | Prediction error variance of $[\hat u_G, \hat u_S]$.                             |
-| `model.residuals`              | Residuals of the labelled rows.                                                  |
-| `model.varcomp()`              | Raw and unit variances (see [Deep kernel](deep_kernel.qmd)).                     |
-| `model.AIC`                    | Akaike information criterion, post REML.                                         |
-| `model.loss`, `model.score`    | Training curves (see [Monitoring](training.qmd#monitoring)).                |
-| `model.pca`                    | PCA of the raw and weighted embeddings: `coords`, `inertia`, `eigvec` per embedding. |
-| `model.plot(plan=(0, 1))`      | Individual projections on the principal plan `plan`, colored by group.        |
+| `model.residual`               | The [pyreml]{.pyreml} `Residual`: `.residuals` and `.table` of the labelled rows, `.variance`. |
+| `model.varcomp()`              | Raw and unit variances, one row per term and the residual last (see [Deep kernel](deep_kernel.qmd)). |
+| `model.loss`, `model.score`    | Training curves (see [Monitoring](training.qmd#monitoring)).                     |
+| `model.random[j]`              | The $j$-th random effect, in the order of `random`.                              |
 
+Each `RandomNN` term exposes:
+
+| Accessor                       | Content                                                                 |
+|--------------------------------|-------------------------------------------------------------------------|
+| `.prediction`                  | $Z_j \hat u_j$ for every row of `data`, missing responses included.             |
+| `.uhat`                        | $\hat u_j$, of shape `(q_j, d)`, one row per level of `.levels`.                 |
+| `.levels`                      | The levels of `group`, `[None]` without it.                                      |
+| `.PEV`                         | Prediction error variance of $\hat u_j$.                                         |
+| `.pca`                         | PCA of the `"Raw embeddings"` $Z$ and of the `"Weighted embeddings"` $Z \odot \hat u_{j,k(i)}$, with $k(i)$ the group of individual $i$: `coords`, `inertia`, `eigvec` per embedding. |
+| `.plot(plan=(0, 1), group_by=None)` | Individual projections on the principal plan `plan`, colored by `group_by`, a qualitative column of `data`. Defaults to the term's `group`, monochrome without it. |
+
+The `Random` terms expose their [pyreml]{.pyreml} accessors.

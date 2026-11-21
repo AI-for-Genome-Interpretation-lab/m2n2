@@ -57,7 +57,6 @@
     svg.appendChild(gPts);
 
     const hint = el("text", { class: "c3-hint", x: w - 8, y: h - 8, "text-anchor": "end" });
-    hint.textContent = "drag to rotate";
     svg.appendChild(hint);
 
     const axes = [0, 1, 2].map(function (j) {
