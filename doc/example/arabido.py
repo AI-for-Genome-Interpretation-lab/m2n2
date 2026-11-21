@@ -7,10 +7,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from matplotlib.colors import to_hex
 from meiosim import Arabidopsis
 from meiosim.Population import MISSING
-from m2n2 import MixedModelNN, ToyNN
+from m2n2 import MixedModelNN, Embedding, RandomNN, ToyNN
+from pyreml import Residual
 
 pop = Arabidopsis(n_SNPs=10_000, seed=42)
 data = pop.phenotypes[["individual", "DTF1"]].merge(
@@ -83,14 +85,28 @@ network = Network(z) # /!\ z and data must be perfectly aligned
 
 model = MixedModelNN.from_dataframe(
     data,
-    response="DTF1",
-    Z=network,
-    specificity="country",
-    optimizer=partial(
-        torch.optim.AdamW,
-        lr=1e-3,
-        weight_decay=1e-1
-    ),
+    response = "DTF1",
+    fixed = "1 + country",
+    embedding = {
+        "geno": Embedding(
+            network,
+            optimizer = partial(
+                torch.optim.AdamW,
+                lr=1e-3,
+                weight_decay=1e-1
+            )
+        )
+    },
+    random = [
+        RandomNN(
+            embedding = "geno",
+        ),
+        RandomNN(
+            embedding = "geno",
+            group = "country",
+        )
+    ],
+    residual = Residual(),
     lr_beta=1e-2,
     lr_var=1e-2,
 )
@@ -116,16 +132,17 @@ plt.tight_layout()
 fig.savefig("../img/m2n2_training.png", dpi=150, bbox_inches="tight")
 plt.close(fig)
 
-model.plot()
+model.random[0].plot(group_by = "country")
+model.random[1].plot()
 
 model.varcomp()
 
-# embedding kinship, VanRaden-like: centered embeddings scaled by 1 / sum_j var(z_j)
-model.network.eval()
+# embedding kinship, VanRaden-like: embeddings on the unit sphere, centered, scaled by 1 / sum_j var(z_j)
+network.eval()
 with torch.no_grad():
-    Z_G = model.embed()[:, :model.d]
-Z_c = Z_G - Z_G.mean(dim=0)
-K_Z = (Z_c @ Z_c.T * model.var_ratio).cpu().numpy()
+    Z = F.normalize(network(), dim=1)
+Z_c = Z - Z.mean(dim=0)
+K_Z = (Z_c @ Z_c.T / Z.var(dim=0).sum()).cpu().numpy()
 
 fig, ax = plt.subplots(figsize=(6, 5))
 sns.heatmap(K_Z[np.ix_(order, order)], cmap="coolwarm", center=0, square=True, xticklabels=False, yticklabels=False, ax=ax)
@@ -134,12 +151,12 @@ plt.tight_layout()
 fig.savefig("../img/m2n2_kinship.png", dpi=150, bbox_inches="tight")
 plt.close(fig)
 
-for title, name in [
-    ("Raw embeddings", "m2n2_embedding"),
-    ("General weighted embeddings", "m2n2_general"),
-    ("Specific weighted embeddings", "m2n2_specific"),
+for term, title, name in [
+    (model.random[0], "Raw embeddings", "m2n2_embedding"),
+    (model.random[0], "Weighted embeddings", "m2n2_general"),
+    (model.random[1], "Weighted embeddings", "m2n2_specific"),
 ]:
-    save_cloud(model.pca[title]["coords"], model.pca[title]["inertia"], name)
+    save_cloud(term.pca[title]["coords"], term.pca[title]["inertia"], name)
 
 # %%
 # NN alone
