@@ -136,6 +136,12 @@ model.varcomp()
 - [Training models](training.qmd)
 - [Deep kernel](deep_kernel.qmd)
 
+## Citation
+
+Please cite this package as:
+
+Marchal, A., Raimondi, D., 2026. m2n2: mixed modeling with neural networks [Computer software]. https://doi.org/10.5281/zenodo.24401053
+
 ## Code
 
 The code is available at [this address](https://github.com/ai-for-genome-interpretation-lab/m2n2).
