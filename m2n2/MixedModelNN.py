@@ -31,7 +31,7 @@ class MixedModelNN(MixedModel):
     def from_dataframe(
         cls,
         data: pd.DataFrame,
-        response: str,
+        response: str | list[str],
         embedding: dict[str, Embedding],
         random: list[RandomNN | Random],
         fixed: str = "1",
