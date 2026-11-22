@@ -21,8 +21,8 @@ model.fit(
 | Argument     | Meaning                                                                                       |
 |--------------|-----------------------------------------------------------------------------------------------|
 | `n_epoch`    | Maximum number of epochs. Defaults to 1000.                                                    |
-| `batch_size` | Rows per minibatch. Defaults to `None`: full batch.                                            |
-| `validation` | Fraction of the labelled rows held out for early stopping. Defaults to `None`: no validation. |
+| `batch_size` | Individuals per minibatch, with all their responses. Defaults to `None`: full batch.           |
+| `validation` | Fraction of the labelled individuals held out for early stopping. Defaults to `None`: no validation. |
 | `patience`   | Epochs without improvement of the validation score before stopping. Defaults to 50, `None` never stops. |
 | `verbose`    | Prints the loss and the score at each epoch.                                                   |
 | `full_REML`  | Runs the [pyreml]{.pyreml} [initialization](#initialization) and the REML of the [polish](#polish). Defaults to `True`; `False` skips both, for datasets too large for them. |
@@ -38,7 +38,7 @@ The pipeline:
 
 With `full_REML = True`, the model is first fitted by [pyreml]{.pyreml} without the `RandomNN` terms, on the labelled rows: it initializes $\beta$, and the variances of the `Random` terms and of the residual.
 With `full_REML = False`, this fit is skipped: $\beta$ is initialized by ordinary least squares on the labelled rows, and the variances of the `Random` terms and of the residual at their [pyreml]{.pyreml} initial values.
-In both cases, the variances of the `RandomNN` terms are initialized at the variance of the response.
+In both cases, the variances of the `RandomNN` terms are initialized at the variance of the response; with several responses, $S_j$ is initialized at the diagonal of their variances, without covariance.
 
 ## Loss function
 
@@ -51,7 +51,7 @@ V = \sum_j Z_j G_j Z_j^\top + R,
 $$
 
 with one term $j$ per random effect, and $R$ the covariance of the residual.
-For a `RandomNN` term, $Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)$, with $\nu$ the network of its `Embedding` and $q_j$ the number of groups, and $G_j = \sigma^2_{u_j} I$.
+For a `RandomNN` term, $Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)$, with $\nu$ the network of its `Embedding` and $q_j$ the number of groups, and $G_j = \sigma^2_{u_j} I$; with several responses, $G_j = S_j \otimes I_{q_j d}$ (see [Several responses](build.qmd#several-responses)).
 For a [pyreml]{.pyreml} `Random` term, $Z_j$ and $G_j$ follow its specification.
 
 The network parameters $\theta$ only enter $V$: like the variances, they are variance parameters, estimated jointly with $\beta$ by restricted maximum of likelihood (REML):
@@ -69,7 +69,8 @@ The random effects $u_j$ do not enter the loss: they are predicted afterwards by
 
 ### Minibatches
 
-At each epoch, the labelled training rows are shuffled and split into minibatches of `batch_size` rows, the incomplete last batch dropped.
+At each epoch, the labelled training individuals are shuffled and split into minibatches of `batch_size` individuals, the incomplete last batch dropped.
+An individual enters a minibatch with all its observed responses, which the residual may correlate.
 As the embeddings are computed row-wise, the covariance of a minibatch $B$ is the submatrix $V_B$ of $V$, and $y_B \sim N(X_B\beta, V_B)$ exactly: the loss of a minibatch is the REML of the corresponding sub-model.
 When a level is absent from the minibatch, $X_B$ loses rank, *e.g.* an empty column, or the reference level of a qualitative effect, the intercept being then the sum of the present dummies.
 The REML of the sub-model is then computed on a basis of the columns of $X_B$, selected by pivoted QR: the fixed effects it cannot estimate are left out of this minibatch.
@@ -88,7 +89,7 @@ A network shared by several terms is embedded once per minibatch: its gradient g
 Trained on the marginal likelihood, a deep kernel can overfit more severely than a network trained alone [@ober_promises_2021].
 For this reason, an early stopping strategy is proposed by [m2n2]{.m2n2}.
 
-With `validation` set, a fraction of the labelled rows is held out once, at random.
+With `validation` set, a fraction of the labelled individuals is held out once, at random, with all their responses.
 At each epoch, the networks in `eval()` mode, the held-out rows $v$ are predicted by their BLUP from the training rows $t$:
 
 $$
@@ -98,6 +99,7 @@ V_t = Z_t G Z_t^\top + R_t,
 $$
 
 with $Z = [Z_1 \mid Z_2 \mid \dots]$ and $G$ the block diagonal of the $G_j$. Their mean squared error is recorded in `model.score`.
+With several responses, the score is the mean over the responses of $\text{MSE}_r / \text{var}(y_r)$, so that no response dominates by its scale.
 
 The best state (weights of every network, $\beta$, variances) is kept. Training stops after `patience` epochs without improvement, and the best state is restored.
 Without `validation`, training runs `n_epoch` epochs and the last state is kept.
@@ -122,7 +124,7 @@ With `full_REML = False`, the REML is skipped: HMME runs on the variances at the
 | Accessor                    | Content                                                    |
 |-----------------------------|------------------------------------------------------------|
 | `model.loss`                | Mean minibatch REML loss at each epoch.                    |
-| `model.score`               | Validation MSE at each epoch, empty without `validation`.  |
+| `model.score`               | Validation MSE at each epoch, standardized with several responses, empty without `validation`. |
 | `model.opti_REML.loss`      | REML loss at each iteration of the polish.                 |
 | `model.convergence`         | Whether the polish met the convergence criterion, `None` with `full_REML = False`. |
 | `model.opti_REML.duration`  | Wall-clock time of the polish, in seconds.                 |
