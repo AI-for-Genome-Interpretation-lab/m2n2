@@ -2,6 +2,7 @@ import copy
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import patsy
 import scipy.linalg
 import torch
@@ -19,7 +20,7 @@ class MixedModelNN(MixedModel):
     trained jointly with beta and the variances on the REML loss.
 
     The model is first built by pyreml without the RandomNN terms: it designs the Random terms and
-    the residual, and, if full, fits them to initialize beta and their variances. It is then rebuilt
+    the residual, and is kept to initialize beta and their variances at fit. It is then rebuilt
     by the low-level constructor, with varmeth and varmeth_inv stacking every term, in the order of
     `random`. Rows with a missing response are left out of the fit, but the RandomNN terms still
     predict them. The mixed model runs in double, on the device of the networks output; the networks
@@ -37,7 +38,6 @@ class MixedModelNN(MixedModel):
         residual: Residual | None = None,
         lr_beta: float = 1e-3,
         lr_var: float = 1e-3,
-        full: bool = True,
     ):
         data = data.reset_index(drop=True)
         residual = Residual() if residual is None else residual
@@ -65,13 +65,10 @@ class MixedModelNN(MixedModel):
         pm = MixedModel.from_dataframe(data[keep], response, fixed=fixed, random=randoms, residual=residual, device=str(device))
         if pm.n != keep.sum():
             raise ValueError(f"pyreml kept {pm.n} rows, {keep.sum()} expected")
-        if full:
-            pm.fit(verbose=False)
 
-        log_v0 = float(np.log(pm.y.var().item()))
         for term in random:
             if isinstance(term, RandomNN):
-                term.design(data, embedding[term.embedding].network, outputs[term.embedding].shape[1], log_v0, device)
+                term.design(data, embedding[term.embedding].network, outputs[term.embedding].shape[1], device)
 
         # pyreml picks the path: Woodbury (varmeth_inv) if q < n, direct (varmeth) otherwise
         def varmeth(self):
@@ -95,18 +92,13 @@ class MixedModelNN(MixedModel):
             device      = str(device),
         )
 
-        if full:
-            mm.beta.data.copy_(pm.beta.data)
-        else:
-            mm.OLS(terminate=False)
-
         mm.response = [response]
         mm.fixed_names = pm.fixed_names
         mm.w_grid = pm.w_grid
         mm.random = random
         mm.residual = residual
         mm.embedding = embedding
-        mm.full = full
+        mm.pyreml = pm  # shares the Random terms, the residual and their variances
         mm.keep = torch.tensor(keep.to_numpy(), device=device)
         # the design of the Random terms is fixed: their dense incidence on the rows of the fit
         mm.Z_random = {
@@ -163,13 +155,26 @@ class MixedModelNN(MixedModel):
         validation: float | None = None,
         patience: int | None = 50,
         verbose: bool = True,
+        full_REML: bool = True,
     ):
         """
+        full_REML: initialization by pyreml and REML polish; False skips both, for datasets too large for them.
         batch_size: rows per minibatch, None = full batch; the incomplete last batch is dropped.
         validation: fraction of the labelled rows held out (None or 0 = none) to score each epoch by the
         MSE of their BLUP from the training rows; the best state is restored at the end, and the training
         stops after `patience` epochs without improvement (never if patience is None).
         """
+        # initialization: beta and the variances of the Random terms and of the residual by pyreml,
+        # without the RandomNN terms (full_REML), or by OLS and their pyreml initial values
+        if full_REML:
+            self.pyreml.fit(verbose=False)
+            self.beta.data.copy_(self.pyreml.beta.data)
+        else:
+            self.OLS(terminate=False)
+        for term in self.random:
+            if isinstance(term, RandomNN):
+                term.log_var.data.fill_(np.log(self.y.var().item()))
+
         # full labelled data; minibatches swap _y, _X, _Z, n, w_grid, beta and p, restored after each epoch
         y, X, n, w_grid, beta_full, p = self._y, self._X, self.n, self.w_grid, self.beta, self.p
         networks = [emb.network for emb in self.embedding.values()]
@@ -247,15 +252,16 @@ class MixedModelNN(MixedModel):
             for p, value in zip(self.params, params):
                 p.data.copy_(value)
 
-        # networks frozen, then polish: REML if full, BLUE / BLUP / PEV
+        # networks frozen, then polish: REML if full_REML, BLUE / BLUP / PEV
         for network in networks:
             network.eval()
         with torch.no_grad():
             self._Z = self.design()
             embedded = {name: F.normalize(emb.network(), dim=1).to(self.dtype) for name, emb in self.embedding.items()}
 
-        if self.full:
+        if full_REML:
             self.REML()
+        self.convergence = self.opti_REML.converged if full_REML else None
         self.HMME()
 
         for term in self.random:
@@ -266,6 +272,21 @@ class MixedModelNN(MixedModel):
                 term.summarize(embedded[term.embedding])
 
         return self
+
+    def plot(self):
+        """Training curves: mean minibatch REML loss and validation MSE per epoch, the restored epoch dashed."""
+        fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(10, 3.5))
+        ax_loss.plot(self.loss)
+        ax_loss.set_xlabel("epoch")
+        ax_loss.set_ylabel("REML -2logLik")
+        ax_score.plot(self.score)
+        if self.score:
+            ax_score.axvline(np.argmin(self.score), color="grey", linestyle="--")
+        ax_score.set_xlabel("epoch")
+        ax_score.set_ylabel("validation MSE")
+        plt.tight_layout()
+        plt.show()
+        return fig
 
     def compute_AIC(self, REML=True):
         # called by HMME: no AIC, the networks are not fitted by maximum likelihood

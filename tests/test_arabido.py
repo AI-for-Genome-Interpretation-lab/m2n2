@@ -78,7 +78,7 @@ def test_convergence_network(model):
 
 
 def test_convergence_REML(model):
-    assert model.opti_REML.converged
+    assert model.convergence
 
 
 def genetic_value(model):

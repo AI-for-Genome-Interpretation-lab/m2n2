@@ -14,6 +14,7 @@ authors:
     given-names: "Daniele"
     orcid: "https://orcid.org/0000-0003-1157-1899"
     affiliation: "IGMM - CNRS"
+doi: "10.5281/zenodo.24401053"
 license: "GPL-3.0-or-later"
 repository-code: "https://github.com/ai-for-genome-interpretation-lab/m2n2"
 url: "https://github.com/ai-for-genome-interpretation-lab/m2n2"

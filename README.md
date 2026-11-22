@@ -49,7 +49,6 @@ Additional random effects following the **pyreml** specification system can also
 ```python
 from functools import partial
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from meiosim import Arabidopsis
@@ -120,15 +119,7 @@ model.fit(
 )
 
 
-fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(10, 3.5))
-ax_loss.plot(model.loss)
-ax_loss.set_xlabel("epoch")
-ax_loss.set_ylabel("REML -2logLik")
-ax_score.plot(model.score)
-ax_score.axvline(np.argmin(model.score), color="grey", linestyle="--")
-ax_score.set_xlabel("epoch")
-ax_score.set_ylabel("validation MSE")
-plt.show()
+model.plot()
 
 model.random[0].plot(group_by = "country")
 model.random[1].plot()
@@ -139,6 +130,12 @@ model.varcomp()
 ## Documentation
 
 The documentation is available at [this address](https://ai-for-genome-interpretation-lab.github.io/m2n2).
+
+## Citation
+
+Please cite this package as:
+
+Marchal, A., Raimondi, D., 2026. m2n2: mixed modeling with neural networks [Computer software]. https://doi.org/10.5281/zenodo.24401053
 
 ## Code
 
