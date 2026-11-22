@@ -27,7 +27,7 @@ pip install m2n2
 
 ## The model
 
-[m2n2]{.m2n2} fits a linear mixed model built upon the neural network $\nu$ of parameters $\theta$:
+[m2n2]{.m2n2} fits a linear mixed model built upon `PyTorch` the neural network $\nu$ of parameters $\theta$:
 
 $$
 y = X\beta + Zu + r
@@ -35,7 +35,7 @@ y = X\beta + Zu + r
 z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d
 $$
 
-- $y$: a quantitative continuous label.
+- $y$: a quantitative continuous label, or a list of labels, to be read in the columns of the `pandas` dataframe.
 - $X$: the fixed effects design matrix, provided from a `patsy` formula.
 - $\beta$: the fixed effects.
 - $z_i$: features of individual $i$.
