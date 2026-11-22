@@ -24,7 +24,7 @@ pip install m2n2
 
 ## The model
 
-**m2n2** fits a linear mixed model built upon the neural network $\nu$ of parameters $\theta$:
+**m2n2** fits a linear mixed model built upon the `PyTorch` neural network $\nu$ of parameters $\theta$:
 
 $$
 y = X\beta + Zu + r
@@ -32,7 +32,7 @@ y = X\beta + Zu + r
 z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d
 $$
 
-- $y$: a quantitative continuous label.
+- $y$: a quantitative continuous label, or a list of labels, to be read in the columns of the `pandas` dataframe.
 - $X$: the fixed effects design matrix, provided from a `patsy` formula.
 - $\beta$: the fixed effects.
 - $z_i$: features of individual $i$.
@@ -70,10 +70,11 @@ class Network(nn.Module):
         super().__init__()
         self.register_buffer("z", z)
         self.body = nn.Sequential(
-            nn.Dropout(0.1),
-            nn.Linear(z.shape[1], 256), nn.BatchNorm1d(256), nn.GELU(), nn.Dropout(0.5),
-            nn.Linear(256, 128), nn.BatchNorm1d(128), nn.GELU(), nn.Dropout(0.5),
-            nn.Linear(128, 64),
+            nn.Dropout(0.1), nn.Linear(z.shape[1], 256),
+            nn.BatchNorm1d(256), nn.GELU(),
+            nn.Dropout(0.5), nn.Linear(256, 128),
+            nn.BatchNorm1d(128), nn.GELU(),
+            nn.Dropout(0.5), nn.Linear(128, 64),
         )
 
     def forward(self, rows=None):
@@ -120,10 +121,8 @@ model.fit(
 
 
 model.plot()
-
 model.random[0].plot(group_by = "country")
 model.random[1].plot()
-
 model.varcomp()
 ```
 
