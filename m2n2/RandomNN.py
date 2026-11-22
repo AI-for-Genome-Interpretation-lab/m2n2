@@ -20,7 +20,7 @@ class RandomNN:
         self.group = group
         self.label = embedding if group is None else f"{embedding}:{group}"
 
-    def design(self, data: pd.DataFrame, network, d: int, log_v0: float, device):
+    def design(self, data: pd.DataFrame, network, d: int, device):
         if self.group is None:
             codes, levels = np.zeros(len(data), dtype=int), [None]
         else:
@@ -37,7 +37,7 @@ class RandomNN:
         self.codes = torch.as_tensor(codes, device=device)
         self.groups = F.one_hot(self.codes, len(levels)).double()
         self.k, self.c, self.L = 1, d, len(levels)  # read by pyreml to slice uhat and PEV
-        self.log_var = torch.tensor(log_v0, dtype=torch.double, device=device, requires_grad=True)
+        self.log_var = torch.tensor(0.0, dtype=torch.double, device=device, requires_grad=True)  # set by fit
         self.dtype = torch.double
 
     def migrate(self, dtype: torch.dtype = torch.double):
@@ -83,7 +83,7 @@ class RandomNN:
         self.prediction = weighted.sum(dim=1)
 
         self.pca = {}
-        for title, P in {"Raw embeddings": Z, "Weighted embeddings": weighted}.items():
+        for title, P in {"Z": Z, "Z*u": weighted}.items():
             Pc = P - P.mean(dim=0)
             eigval, eigvec = torch.linalg.eigh(Pc.T @ Pc / (len(Pc) - 1))
             eigval, eigvec = eigval.flip(0), eigvec.flip(1)
