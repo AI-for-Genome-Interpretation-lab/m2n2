@@ -14,6 +14,7 @@ model.fit(
     validation = 0.1,
     patience   = 50,
     verbose    = True,
+    full_REML  = True,
 )
 ```
 
@@ -24,12 +25,20 @@ model.fit(
 | `validation` | Fraction of the labelled rows held out for early stopping. Defaults to `None`: no validation. |
 | `patience`   | Epochs without improvement of the validation score before stopping. Defaults to 50, `None` never stops. |
 | `verbose`    | Prints the loss and the score at each epoch.                                                   |
+| `full_REML`  | Runs the [pyreml]{.pyreml} [initialization](#initialization) and the REML of the [polish](#polish). Defaults to `True`; `False` skips both, for datasets too large for them. |
 
 The pipeline:
 
+0. [Initialization](#initialization) of $\beta$ and the variances, OLS only with `full_REML = False`.
 1. REML descent of the network parameters, $\beta$ and the variances, on [minibatches](#minibatches) (see [Loss function](#loss-function)).
 2. [Validation](#validation-and-early-stopping) at each epoch, early stopping and restoration of the best state.
-3. [Polish](#polish): REML and HMME with the networks frozen, HMME only with `full = False`.
+3. [Polish](#polish): REML and HMME with the networks frozen, HMME only with `full_REML = False`.
+
+## Initialization
+
+With `full_REML = True`, the model is first fitted by [pyreml]{.pyreml} without the `RandomNN` terms, on the labelled rows: it initializes $\beta$, and the variances of the `Random` terms and of the residual.
+With `full_REML = False`, this fit is skipped: $\beta$ is initialized by ordinary least squares on the labelled rows, and the variances of the `Random` terms and of the residual at their [pyreml]{.pyreml} initial values.
+In both cases, the variances of the `RandomNN` terms are initialized at the variance of the response.
 
 ## Loss function
 
@@ -106,7 +115,7 @@ The model is then a linear mixed model with a known random design, refitted by [
 - [HMME](https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#hmme) gives the BLUE of $\beta$, the BLUP of every $u_j$, and their error variances.
 
 Both run in double, as the whole mixed model.
-With `full = False` (see [Building models](build.qmd#the-from_dataframe-constructor)), the REML is skipped: HMME runs on the variances at the end of training (restored state with `validation`).
+With `full_REML = False`, the REML is skipped: HMME runs on the variances at the end of training (restored state with `validation`).
 
 ## Monitoring
 
@@ -118,7 +127,7 @@ With `full = False` (see [Building models](build.qmd#the-from_dataframe-construc
 | `model.opti_REML.converged` | Whether the polish met the convergence criterion.          |
 | `model.opti_REML.duration`  | Wall-clock time of the polish, in seconds.                 |
 
-The `opti_REML` accessors are not set with `full = False`.
+The `opti_REML` accessors are not set with `full_REML = False`.
 
 ### Training curves
 

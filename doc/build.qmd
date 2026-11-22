@@ -48,7 +48,6 @@ model.fit()
 | `residual`  | The residual, a [pyreml]{.pyreml} `Residual`. Defaults to `Residual()`: $\sigma^2_R I$.       |
 | `lr_beta`   | Learning rate of $\beta$. Defaults to 1e-3.                                                    |
 | `lr_var`    | Learning rate of the variances. Defaults to 1e-3.                                              |
-| `full`      | Runs the [pyreml]{.pyreml} [initialization](#initialization) and the REML of the [polish](training.qmd#polish). Defaults to `True`; `False` skips both, for datasets too large for them. |
 
 ## Embeddings
 
@@ -133,14 +132,9 @@ They follow the [pyreml specification system](https://ai-for-genome-interpretati
 
 The random design $[Z_1 \mid Z_2 \mid \dots]$ has $\sum_j q_j d_j$ columns over the `RandomNN` terms, plus those of the `Random` terms.
 
-## Initialization
+## Optimizers
 
-The model is first fitted by [pyreml]{.pyreml} without the `RandomNN` terms, on the labelled rows: it initializes $\beta$, and the variances of the `Random` terms and of the residual.
-The variances of the `RandomNN` terms are then initialized at the variance of the response.
-All variances are log-parameterized.
-
-With `full = False`, this first fit is skipped: $\beta$ is initialized by ordinary least squares on the labelled rows, and the variances of the `Random` terms and of the residual at their [pyreml]{.pyreml} initial values.
-
+All variances are log-parameterized, and initialized by `.fit()` (see [Initialization](training.qmd#initialization)).
 The optimizer of each embedding is called on two parameter groups, and $\beta$ and the variances are stepped by Adam:
 
 | Group                                    | Parameters                    | Optimizer   | Weight decay | Learning rate |
