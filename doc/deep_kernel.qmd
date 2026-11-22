@@ -124,7 +124,7 @@ $Z_G \odot \hat u_G$, whose row sums are the general part of the predicted value
 Principal components of the general weighted embeddings $Z_G \odot \hat u_G$.
 :::
 
-Just like the infinitesimal effects of the ridge regression barely alter the marker space, the general embedding effects is reminescent to the embedding space: both views are relatively close.
+Just like the infinitesimal effects of the ridge regression barely alter the marker space, the general embedding effects are reminescent of the embedding space: both views are relatively close.
 
 ### Specific weighted embeddings
 
