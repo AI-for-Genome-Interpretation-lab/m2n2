@@ -70,10 +70,11 @@ class Network(nn.Module):
         super().__init__()
         self.register_buffer("z", z)
         self.body = nn.Sequential(
-            nn.Dropout(0.1),
-            nn.Linear(z.shape[1], 256), nn.BatchNorm1d(256), nn.GELU(), nn.Dropout(0.5),
-            nn.Linear(256, 128), nn.BatchNorm1d(128), nn.GELU(), nn.Dropout(0.5),
-            nn.Linear(128, 64),
+            nn.Dropout(0.1), nn.Linear(z.shape[1], 256),
+            nn.BatchNorm1d(256), nn.GELU(),
+            nn.Dropout(0.5), nn.Linear(256, 128),
+            nn.BatchNorm1d(128), nn.GELU(),
+            nn.Dropout(0.5), nn.Linear(128, 64),
         )
 
     def forward(self, rows=None):
