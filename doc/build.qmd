@@ -111,7 +111,7 @@ RandomNN(
 |-------------|-----------------------------------------------------------------------------------------------|
 | `embedding` | Name of the embedding, a key of the `embedding` dictionary.                                    |
 | `group`     | Qualitative column defining the $q_j$ groups of the term. Defaults to `None`: a single group, the general effect. |
-| `left_hand` | Structure of $S_j$, the covariance of the term **across the responses**: the left-hand factor of $S_j \otimes I_{q_j d}$, as `left_hand` in [pyreml]{.pyreml} and in `Residual`. `"iid"`, `"full"` or `"fa"`. Defaults to `"iid"`. Irrelevant with one response. |
+| `left_hand` | Structure of $S_j$, the covariance of the term **across the responses**: the left-hand factor of $S_j \otimes I_{q_j d}$, as `left_hand` in [pyreml]{.pyreml} and in `Residual`. `"iid"`, `"diag"`, `"full"` or `"fa"`. Defaults to `"iid"`. Irrelevant with one response. |
 | `n_axes`    | Number of factors of the `"fa"` structure.                                                     |
 
 With $Z = \nu(z, \theta)$ the embedding, the term reads:
@@ -119,7 +119,7 @@ With $Z = \nu(z, \theta)$ the embedding, the term reads:
 - $Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)$, of dimension $n \times q_j d$: the embedding of each individual in the columns of its group, zeros elsewhere;
 - $u_j \sim N(0, \sigma^2_{u_j} I)$, $u_j \in \mathbb{R}^{q_j d}$: one embedding effect vector per group.
 
-With $k$ responses, each response receives its own effects, upon the same embedding: $u_j \sim N(0, S_j \otimes I_{q_j d})$, $u_j \in \mathbb{R}^{k q_j d}$, with $S_j$ the $k \times k$ covariance of the term across the responses, structured by `left_hand`.
+With $m$ responses, each response receives its own effects, upon the same embedding: $u_j \sim N(0, S_j \otimes I_{q_j d})$, $u_j \in \mathbb{R}^{m q_j d}$, with $S_j$ the $m \times m$ covariance of the term across the responses, structured by `left_hand`.
 
 Without `group`, $Z_j = Z$: the effects $u_j$ are shared by all individuals.
 With `group`, each group receives its own effects: combined with a general term on the same embedding, they capture what is specific to the group (see [Deep kernel](deep_kernel.qmd)).
@@ -132,12 +132,12 @@ They follow the [pyreml specification system](https://ai-for-genome-interpretati
 
 ## Several responses
 
-With a list of $k$ responses, `data` keeps one row per individual, and $y$ stacks the observed responses, response by response, as in [pyreml]{.pyreml}.
+With a list of $m$ responses, `data` keeps one row per individual, and $y$ stacks the observed responses, response by response, as in [pyreml]{.pyreml}.
 The fixed formula is shared by the responses, with one coefficient per response and per term.
 The residual covariance across the responses of an individual follows the `left_hand` of `Residual`.
 
 For a `RandomNN` term, the observation of response $r$ on individual $i$ reads its embedding in the columns of response $r$ and of the group of $i$.
-$S_j$ carries the covariance of the term across the responses: `"iid"` gives them independent effects of a common variance, `"full"` an unstructured covariance, and `"fa"` a factor-analytic one, of `n_axes` factors (see [pyreml variance structures](https://ai-for-genome-interpretation-lab.github.io/pyreml/variance_structures.html)).
+$S_j$ carries the covariance of the term across the responses: `"iid"` gives them independent effects of a common variance, on the standardized scale of the responses, `"diag"` independent effects of their own variances, `"full"` an unstructured covariance, and `"fa"` a factor-analytic one, of `n_axes` factors (see [pyreml variance structures](https://ai-for-genome-interpretation-lab.github.io/pyreml/variance_structures.html)).
 
 ## Data layout and missing values
 
@@ -145,7 +145,7 @@ $S_j$ carries the covariance of the term across the responses: `"iid"` gives the
 - A row missing a fixed covariate is left out of the fit.
 - `group` must be qualitative and complete: numeric codes are to be cast to `str`.
 
-The random design $[Z_1 \mid Z_2 \mid \dots]$ has $k \sum_j q_j d_j$ columns over the `RandomNN` terms, plus those of the `Random` terms.
+The random design $[Z_1 \mid Z_2 \mid \dots]$ has $m \sum_j q_j d_j$ columns over the `RandomNN` terms, plus those of the `Random` terms.
 
 ## Optimizers
 
@@ -177,8 +177,8 @@ Each `RandomNN` term exposes:
 
 | Accessor                       | Content                                                                 |
 |--------------------------------|-------------------------------------------------------------------------|
-| `.prediction`                  | $Z_j \hat u_j$ for every row of `data`, missing responses included, of shape `(n,)`, or `(n, k)` with $k$ responses. |
-| `.uhat`                        | $\hat u_j$, of shape `(q_j, d)`, or `(k, q_j, d)` with $k$ responses, one row per level of `.levels`. |
+| `.prediction`                  | $Z_j \hat u_j$ for every row of `data`, missing responses included, of shape `(n,)`, or `(n, m)` with $m$ responses. |
+| `.uhat`                        | $\hat u_j$, of shape `(q_j, d)`, or `(m, q_j, d)` with $m$ responses, one row per level of `.levels`. |
 | `.variance`                    | $S_j$, the covariance of the term across the responses, in natural units.        |
 | `.levels`                      | The levels of `group`, `[None]` without it.                                      |
 | `.PEV`                         | Prediction error variance of $\hat u_j$.                                         |

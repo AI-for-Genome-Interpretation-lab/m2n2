@@ -121,10 +121,8 @@ model.fit(
 
 
 model.plot()
-
 model.random[0].plot(group_by = "country")
 model.random[1].plot()
-
 model.varcomp()
 ```
 

@@ -3,22 +3,26 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
+from pyreml import Random
 
 
-class RandomNN:
+class RandomNN(Random):
     """
     Random effect Z_j u_j upon an embedding Z, rows on the unit sphere:
     Z_j = [Z * 1{group A} | Z * 1{group B} | ...], u_j ~ N(0, s2_j I), one effect vector per group.
     Without group, a single group: Z_j = Z, the general effect.
 
-    Exposes the interface of the pyreml components (varmeth, varmeth_inv, migrate, format_pred,
-    format_variance, k * c * L columns), so that MixedModel handles it as any random effect.
+    A pyreml Random whose design is the embedding: k responses, c = 1 component, and its
+    L = q_j * dim levels are the (group, embedding dimension) pairs, so that u_j ~ N(0, S ⊗ I_L).
+    design is overridden, the network replacing the incidence of `unit`.
     """
 
     def __init__(self, embedding: str, group: str | None = None):
         self.embedding = embedding
         self.group = group
-        self.label = embedding if group is None else f"{embedding}:{group}"
+        # design is overridden, so unit is never read as a column: its only role left is effect_label,
+        # the name of the effect in the pyreml outputs and in varcomp; None is not accepted by pyreml
+        super().__init__(unit=embedding if group is None else f"{embedding}:{group}")
 
     def design(self, data: pd.DataFrame, network, d: int, device):
         if self.group is None:
@@ -32,11 +36,11 @@ class RandomNN:
 
         self.data = data
         self.network = network
-        self.d = d
+        self.dim = d
         self.levels = list(levels)
         self.codes = torch.as_tensor(codes, device=device)
         self.groups = F.one_hot(self.codes, len(levels)).double()
-        self.k, self.c, self.L = 1, d, len(levels)  # read by pyreml to slice uhat and PEV
+        self.k, self.c, self.L = 1, 1, len(levels) * d  # read by pyreml to slice uhat and PEV
         self.log_var = torch.tensor(0.0, dtype=torch.double, device=device, requires_grad=True)  # set by fit
         self.dtype = torch.double
 
@@ -55,18 +59,18 @@ class RandomNN:
 
     def varmeth(self):
         def block():
-            eye = torch.eye(self.L * self.d, dtype=self.dtype, device=self.log_var.device)
+            eye = torch.eye(self.L, dtype=self.dtype, device=self.log_var.device)
             return torch.exp(self.log_var).to(self.dtype) * eye
         return block
 
     def varmeth_inv(self):
         def block_inv():
-            eye = torch.eye(self.L * self.d, dtype=self.dtype, device=self.log_var.device)
-            return torch.exp(-self.log_var).to(self.dtype) * eye, self.L * self.d * self.log_var
+            eye = torch.eye(self.L, dtype=self.dtype, device=self.log_var.device)
+            return torch.exp(-self.log_var).to(self.dtype) * eye, self.L * self.log_var
         return block_inv
 
     def format_pred(self, uhat: torch.Tensor, pev: torch.Tensor):
-        self.uhat = uhat.detach().reshape(self.L, self.d)
+        self.uhat = uhat.detach().reshape(len(self.levels), self.dim)
         self.PEV = pev
 
     def format_variance(self):
@@ -117,7 +121,7 @@ class RandomNN:
             ax.axvline(0, color="grey", lw=0.5)
             ax.set_xlabel(f"PC{i + 1} ({pca['inertia'][i]:.1f} %)")
             ax.set_ylabel(f"PC{j + 1} ({pca['inertia'][j]:.1f} %)")
-            ax.set_title(f"Individual projections, {self.label}\n{title}")
+            ax.set_title(f"Individual projections, {self.effect_label}\n{title}")
         if legend:
             axes[-1].axis("off")
             axes[-1].legend(

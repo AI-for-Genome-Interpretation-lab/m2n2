@@ -297,7 +297,7 @@ class MixedModelNN(MixedModel):
         rows = {}
         for term in self.random:
             if isinstance(term, RandomNN):
-                rows[term.label] = [term.var, term.var_unit]
+                rows[term.effect_label] = [term.var, term.var_unit]
             else:
                 var = float(np.squeeze(term.variance["sigma"]))
                 rows[term.effect_label] = [var, var]
