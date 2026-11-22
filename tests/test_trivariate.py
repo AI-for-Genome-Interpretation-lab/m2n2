@@ -24,8 +24,10 @@ def model(request):
 def test_variances(model):
     unit = model.varcomp()["unit"]  # one row per trait for the term, then for the residual
     m = len(TRAITS)
+    # iid and diag drop the genetic covariances across the traits, which shifts their variances
+    low = 0.1 if model.random[0].left_hand in ("iid", "diag") else 0.3
     for r in range(m):
-        assert 0.3 <= unit.iloc[r] / G[r, r] <= 3
+        assert low <= unit.iloc[r] / G[r, r] <= 3
         assert 0.3 <= unit.iloc[m + r] / R[r, r] <= 3
 
 
@@ -62,7 +64,8 @@ def test_dimensions(model):
     m = len(TRAITS)
     assert model.random[0].prediction.shape == (len(data), m)
     assert model.random[0].uhat.shape == (m, 1, D)
-    assert np.asarray(model.random[0].variance["sigma"]).shape == (m, m)
+    if model.random[0].left_hand != "iid":  # a scalar with iid, as in pyreml
+        assert np.asarray(model.random[0].variance["sigma"]).shape == (m, m)
     assert len(model.varcomp()) == 2 * m
 
 
