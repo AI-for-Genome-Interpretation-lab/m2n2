@@ -45,7 +45,7 @@ model.fit()
 | `fixed`     | A [patsy](https://pypi.org/project/patsy/) formula for $X$. Defaults to the intercept `"1"`.  |
 | `embedding` | The networks, as a dictionary of named [`Embedding`](#embeddings).                             |
 | `random`    | The random effects, a list of [`RandomNN`](#neural-random-effects) and [pyreml]{.pyreml} [`Random`](#other-random-effects) terms. |
-| `residual`  | The residual, a [pyreml]{.pyreml} `Residual`. Defaults to `Residual()`: $\sigma^2_R I$.       |
+| `residual`  | The residual, a [pyreml]{.pyreml} [`Residual`](#residual). Defaults to `Residual()`: $\sigma^2_R I$. |
 | `lr_beta`   | Learning rate of $\beta$. Defaults to 1e-3.                                                    |
 | `lr_var`    | Learning rate of the variances. Defaults to 1e-3.                                              |
 
@@ -127,8 +127,16 @@ The terms are independent: several groupings, crossed or nested, are as many ter
 
 ## Other random effects
 
-Any [pyreml]{.pyreml} `Random` term, *e.g.* a pedigree or an environmental effect, can be added to `random`, as well as any `Residual` structure.
-They follow the [pyreml specification system](https://ai-for-genome-interpretation-lab.github.io/pyreml/building_models.html), and their design is fixed during training.
+Any [pyreml]{.pyreml} `Random` term, *e.g.* a pedigree or an environmental effect, can be added to `random`.
+It follows the [pyreml specification system](https://ai-for-genome-interpretation-lab.github.io/pyreml/building_models.html), and its design is fixed during training.
+
+## Residual
+
+The residual is a [pyreml]{.pyreml} `Residual`, `Residual()` by default: $r \sim N(0, \sigma^2_R I)$.
+Its `left_hand` structures the covariance across the responses of an individual, and its `right_hand` the covariance across the observations, *e.g.* `"het"` for heterogeneous variances (see [pyreml variance structures](https://ai-for-genome-interpretation-lab.github.io/pyreml/variance_structures.html)).
+The coordinate kernels (`eucl`, `ar_iso`, `ar_ani`), which lay the residual on a grid rather than on the observations, are not supported.
+
+After `.fit()`, `model.residual` carries its [pyreml]{.pyreml} accessors: `.variance`, `.residuals` and `.table` of the labelled observations.
 
 ## Several responses
 
@@ -179,7 +187,7 @@ Each `RandomNN` term exposes:
 |--------------------------------|-------------------------------------------------------------------------|
 | `.prediction`                  | $Z_j \hat u_j$ for every row of `data`, missing responses included, of shape `(n,)`, or `(n, m)` with $m$ responses. |
 | `.uhat`                        | $\hat u_j$, of shape `(q_j, d)`, or `(m, q_j, d)` with $m$ responses, one row per level of `.levels`. |
-| `.variance`                    | $S_j$, the covariance of the term across the responses, in natural units.        |
+| `.variance`                    | The [pyreml]{.pyreml} variance of the term: `["sigma"]` is $S_j$, its covariance across the responses in natural units, a scalar with `"iid"`. |
 | `.levels`                      | The levels of `group`, `[None]` without it.                                      |
 | `.PEV`                         | Prediction error variance of $\hat u_j$.                                         |
 | `.pca`                         | PCA of the embeddings `"Z"` and of the weighted embeddings `"Z*u"`, $Z \odot \hat u_{j,k(i)}$, with $k(i)$ the group of individual $i$: `coords`, `inertia`, `eigvec` per embedding. With several responses, `"Z*u"` is a dictionary by response. |
