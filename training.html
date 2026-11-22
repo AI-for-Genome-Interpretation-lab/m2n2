@@ -218,6 +218,7 @@ window.Quarto = {
    
   <ul>
   <li><a href="#the-fit-method" id="toc-the-fit-method" class="nav-link active" data-scroll-target="#the-fit-method">The fit method</a></li>
+  <li><a href="#initialization" id="toc-initialization" class="nav-link" data-scroll-target="#initialization">Initialization</a></li>
   <li><a href="#loss-function" id="toc-loss-function" class="nav-link" data-scroll-target="#loss-function">Loss function</a>
   <ul class="collapse">
   <li><a href="#minibatches" id="toc-minibatches" class="nav-link" data-scroll-target="#minibatches">Minibatches</a></li>
@@ -263,12 +264,9 @@ window.Quarto = {
 <span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    validation <span class="op">=</span> <span class="fl">0.1</span>,</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    patience   <span class="op">=</span> <span class="dv">50</span>,</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    verbose    <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    full_REML  <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 12%">
-<col style="width: 87%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Argument</th>
@@ -296,14 +294,23 @@ window.Quarto = {
 <td><code>verbose</code></td>
 <td>Prints the loss and the score at each epoch.</td>
 </tr>
+<tr class="even">
+<td><code>full_REML</code></td>
+<td>Runs the <span class="pyreml">pyreml</span> <a href="#initialization">initialization</a> and the REML of the <a href="#polish">polish</a>. Defaults to <code>True</code>; <code>False</code> skips both, for datasets too large for them.</td>
+</tr>
 </tbody>
 </table>
 <p>The pipeline:</p>
-<ol type="1">
+<ol start="0" type="1">
+<li><a href="#initialization">Initialization</a> of <span class="math inline">\(\beta\)</span> and the variances, OLS only with <code>full_REML = False</code>.</li>
 <li>REML descent of the network parameters, <span class="math inline">\(\beta\)</span> and the variances, on <a href="#minibatches">minibatches</a> (see <a href="#loss-function">Loss function</a>).</li>
 <li><a href="#validation-and-early-stopping">Validation</a> at each epoch, early stopping and restoration of the best state.</li>
-<li><a href="#polish">Polish</a>: REML and HMME with the networks frozen, HMME only with <code>full = False</code>.</li>
+<li><a href="#polish">Polish</a>: REML and HMME with the networks frozen, HMME only with <code>full_REML = False</code>.</li>
 </ol>
+</section>
+<section id="initialization" class="level2">
+<h2 class="anchored" data-anchor-id="initialization">Initialization</h2>
+<p>With <code>full_REML = True</code>, the model is first fitted by <span class="pyreml">pyreml</span> without the <code>RandomNN</code> terms, on the labelled rows: it initializes <span class="math inline">\(\beta\)</span>, and the variances of the <code>Random</code> terms and of the residual. With <code>full_REML = False</code>, this fit is skipped: <span class="math inline">\(\beta\)</span> is initialized by ordinary least squares on the labelled rows, and the variances of the <code>Random</code> terms and of the residual at their <span class="pyreml">pyreml</span> initial values. In both cases, the variances of the <code>RandomNN</code> terms are initialized at the variance of the response.</p>
 </section>
 <section id="loss-function" class="level2">
 <h2 class="anchored" data-anchor-id="loss-function">Loss function</h2>
@@ -352,7 +359,7 @@ V_t = Z_t G Z_t^\top + R_t,
 <li><a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#reml">REML</a> re-estimates <span class="math inline">\(\beta\)</span> and the variances, by L-BFGS with its adaptive convergence criterion;</li>
 <li><a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#hmme">HMME</a> gives the BLUE of <span class="math inline">\(\beta\)</span>, the BLUP of every <span class="math inline">\(u_j\)</span>, and their error variances.</li>
 </ul>
-<p>Both run in double, as the whole mixed model. With <code>full = False</code> (see <a href="./build.html#the-from_dataframe-constructor">Building models</a>), the REML is skipped: HMME runs on the variances at the end of training (restored state with <code>validation</code>).</p>
+<p>Both run in double, as the whole mixed model. With <code>full_REML = False</code>, the REML is skipped: HMME runs on the variances at the end of training (restored state with <code>validation</code>).</p>
 </section>
 <section id="monitoring" class="level2">
 <h2 class="anchored" data-anchor-id="monitoring">Monitoring</h2>
@@ -381,8 +388,8 @@ V_t = Z_t G Z_t^\top + R_t,
 <td>REML loss at each iteration of the polish.</td>
 </tr>
 <tr class="even">
-<td><code>model.opti_REML.converged</code></td>
-<td>Whether the polish met the convergence criterion.</td>
+<td><code>model.convergence</code></td>
+<td>Whether the polish met the convergence criterion, <code>None</code> with <code>full_REML = False</code>.</td>
 </tr>
 <tr class="odd">
 <td><code>model.opti_REML.duration</code></td>
@@ -390,10 +397,10 @@ V_t = Z_t G Z_t^\top + R_t,
 </tr>
 </tbody>
 </table>
-<p>The <code>opti_REML</code> accessors are not set with <code>full = False</code>.</p>
+<p>The <code>opti_REML</code> accessors are not set with <code>full_REML = False</code>.</p>
 <section id="training-curves" class="level3">
 <h3 class="anchored" data-anchor-id="training-curves">Training curves</h3>
-<p>Training behavior on a small example:</p>
+<p><code>model.plot()</code> plots them, here on a small example:</p>
 <p align="center">
 <img src="img/m2n2_training.png" width="700">
 </p>

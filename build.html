@@ -205,7 +205,7 @@ window.Quarto = {
   <li><a href="#neural-random-effects" id="toc-neural-random-effects" class="nav-link" data-scroll-target="#neural-random-effects">Neural random effects</a></li>
   <li><a href="#other-random-effects" id="toc-other-random-effects" class="nav-link" data-scroll-target="#other-random-effects">Other random effects</a></li>
   <li><a href="#data-layout-and-missing-values" id="toc-data-layout-and-missing-values" class="nav-link" data-scroll-target="#data-layout-and-missing-values">Data layout and missing values</a></li>
-  <li><a href="#initialization" id="toc-initialization" class="nav-link" data-scroll-target="#initialization">Initialization</a></li>
+  <li><a href="#optimizers" id="toc-optimizers" class="nav-link" data-scroll-target="#optimizers">Optimizers</a></li>
   <li><a href="#the-fitted-model" id="toc-the-fitted-model" class="nav-link" data-scroll-target="#the-fitted-model">The fitted model</a></li>
   </ul>
 </nav>
@@ -303,10 +303,6 @@ window.Quarto = {
 <tr class="even">
 <td><code>lr_var</code></td>
 <td>Learning rate of the variances. Defaults to 1e-3.</td>
-</tr>
-<tr class="odd">
-<td><code>full</code></td>
-<td>Runs the <span class="pyreml">pyreml</span> <a href="#initialization">initialization</a> and the REML of the <a href="./training.html#polish">polish</a>. Defaults to <code>True</code>; <code>False</code> skips both, for datasets too large for them.</td>
 </tr>
 </tbody>
 </table>
@@ -407,11 +403,9 @@ window.Quarto = {
 </ul>
 <p>The random design <span class="math inline">\([Z_1 \mid Z_2 \mid \dots]\)</span> has <span class="math inline">\(\sum_j q_j d_j\)</span> columns over the <code>RandomNN</code> terms, plus those of the <code>Random</code> terms.</p>
 </section>
-<section id="initialization" class="level2">
-<h2 class="anchored" data-anchor-id="initialization">Initialization</h2>
-<p>The model is first fitted by <span class="pyreml">pyreml</span> without the <code>RandomNN</code> terms, on the labelled rows: it initializes <span class="math inline">\(\beta\)</span>, and the variances of the <code>Random</code> terms and of the residual. The variances of the <code>RandomNN</code> terms are then initialized at the variance of the response. All variances are log-parameterized.</p>
-<p>With <code>full = False</code>, this first fit is skipped: <span class="math inline">\(\beta\)</span> is initialized by ordinary least squares on the labelled rows, and the variances of the <code>Random</code> terms and of the residual at their <span class="pyreml">pyreml</span> initial values.</p>
-<p>The optimizer of each embedding is called on two parameter groups, and <span class="math inline">\(\beta\)</span> and the variances are stepped by Adam:</p>
+<section id="optimizers" class="level2">
+<h2 class="anchored" data-anchor-id="optimizers">Optimizers</h2>
+<p>All variances are log-parameterized, and initialized by <code>.fit()</code> (see <a href="./training.html#initialization">Initialization</a>). The optimizer of each embedding is called on two parameter groups, and <span class="math inline">\(\beta\)</span> and the variances are stepped by Adam:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 36%">
@@ -489,6 +483,14 @@ window.Quarto = {
 <td>Training curves (see <a href="./training.html#monitoring">Monitoring</a>).</td>
 </tr>
 <tr class="odd">
+<td><code>model.plot()</code></td>
+<td>Plot of the training curves, returns the figure (see <a href="./training.html#training-curves">Monitoring</a>).</td>
+</tr>
+<tr class="even">
+<td><code>model.convergence</code></td>
+<td>Whether the REML of the polish converged, <code>None</code> with <code>full_REML = False</code> (see <a href="./training.html#polish">Polish</a>).</td>
+</tr>
+<tr class="odd">
 <td><code>model.random[j]</code></td>
 <td>The <span class="math inline">\(j\)</span>-th random effect, in the order of <code>random</code>.</td>
 </tr>
@@ -525,7 +527,7 @@ window.Quarto = {
 </tr>
 <tr class="odd">
 <td><code>.pca</code></td>
-<td>PCA of the <code>"Raw embeddings"</code> <span class="math inline">\(Z\)</span> and of the <code>"Weighted embeddings"</code> <span class="math inline">\(Z \odot \hat u_{j,k(i)}\)</span>, with <span class="math inline">\(k(i)\)</span> the group of individual <span class="math inline">\(i\)</span>: <code>coords</code>, <code>inertia</code>, <code>eigvec</code> per embedding.</td>
+<td>PCA of the embeddings <code>"Z"</code> and of the weighted embeddings <code>"Z*u"</code>, <span class="math inline">\(Z \odot \hat u_{j,k(i)}\)</span>, with <span class="math inline">\(k(i)\)</span> the group of individual <span class="math inline">\(i\)</span>: <code>coords</code>, <code>inertia</code>, <code>eigvec</code> per embedding.</td>
 </tr>
 <tr class="even">
 <td><code>.plot(plan=(0, 1), group_by=None)</code></td>
