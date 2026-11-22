@@ -154,6 +154,8 @@ After `.fit()` (see [Training models](training.qmd)):
 | `model.residual`               | The [pyreml]{.pyreml} `Residual`: `.residuals` and `.table` of the labelled rows, `.variance`. |
 | `model.varcomp()`              | Raw and unit variances, one row per term and the residual last (see [Deep kernel](deep_kernel.qmd)). |
 | `model.loss`, `model.score`    | Training curves (see [Monitoring](training.qmd#monitoring)).                     |
+| `model.plot()`                 | Plot of the training curves, returns the figure (see [Monitoring](training.qmd#training-curves)). |
+| `model.convergence`            | Whether the REML of the polish converged, `None` with `full_REML = False` (see [Polish](training.qmd#polish)). |
 | `model.random[j]`              | The $j$-th random effect, in the order of `random`.                              |
 
 Each `RandomNN` term exposes:

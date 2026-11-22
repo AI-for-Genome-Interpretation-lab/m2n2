@@ -2,6 +2,7 @@ import copy
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 import patsy
 import scipy.linalg
 import torch
@@ -260,6 +261,7 @@ class MixedModelNN(MixedModel):
 
         if full_REML:
             self.REML()
+        self.convergence = self.opti_REML.converged if full_REML else None
         self.HMME()
 
         for term in self.random:
@@ -270,6 +272,21 @@ class MixedModelNN(MixedModel):
                 term.summarize(embedded[term.embedding])
 
         return self
+
+    def plot(self):
+        """Training curves: mean minibatch REML loss and validation MSE per epoch, the restored epoch dashed."""
+        fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(10, 3.5))
+        ax_loss.plot(self.loss)
+        ax_loss.set_xlabel("epoch")
+        ax_loss.set_ylabel("REML -2logLik")
+        ax_score.plot(self.score)
+        if self.score:
+            ax_score.axvline(np.argmin(self.score), color="grey", linestyle="--")
+        ax_score.set_xlabel("epoch")
+        ax_score.set_ylabel("validation MSE")
+        plt.tight_layout()
+        plt.show()
+        return fig
 
     def compute_AIC(self, REML=True):
         # called by HMME: no AIC, the networks are not fitted by maximum likelihood

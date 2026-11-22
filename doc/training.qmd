@@ -124,14 +124,14 @@ With `full_REML = False`, the REML is skipped: HMME runs on the variances at the
 | `model.loss`                | Mean minibatch REML loss at each epoch.                    |
 | `model.score`               | Validation MSE at each epoch, empty without `validation`.  |
 | `model.opti_REML.loss`      | REML loss at each iteration of the polish.                 |
-| `model.opti_REML.converged` | Whether the polish met the convergence criterion.          |
+| `model.convergence`         | Whether the polish met the convergence criterion, `None` with `full_REML = False`. |
 | `model.opti_REML.duration`  | Wall-clock time of the polish, in seconds.                 |
 
 The `opti_REML` accessors are not set with `full_REML = False`.
 
 ### Training curves
 
-Training behavior on a small example:
+`model.plot()` plots them, here on a small example:
 
 <p align="center"><img src="img/m2n2_training.png" width="700"></p>
 

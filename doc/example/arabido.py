@@ -120,17 +120,8 @@ model.fit(
 )
 
 
-fig, (ax_loss, ax_score) = plt.subplots(1, 2, figsize=(10, 3.5))
-ax_loss.plot(model.loss)
-ax_loss.set_xlabel("epoch")
-ax_loss.set_ylabel("REML -2logLik")
-ax_score.plot(model.score)
-ax_score.axvline(np.argmin(model.score), color="grey", linestyle="--")
-ax_score.set_xlabel("epoch")
-ax_score.set_ylabel("validation MSE")
-plt.tight_layout()
+fig = model.plot()
 fig.savefig("../img/m2n2_training.png", dpi=150, bbox_inches="tight")
-plt.show()
 
 model.random[0].plot(group_by = "country")
 model.random[1].plot()
