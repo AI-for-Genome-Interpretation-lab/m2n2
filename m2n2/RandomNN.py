@@ -83,7 +83,7 @@ class RandomNN:
         self.prediction = weighted.sum(dim=1)
 
         self.pca = {}
-        for title, P in {"Raw embeddings": Z, "Weighted embeddings": weighted}.items():
+        for title, P in {"Z": Z, "Z*u": weighted}.items():
             Pc = P - P.mean(dim=0)
             eigval, eigvec = torch.linalg.eigh(Pc.T @ Pc / (len(Pc) - 1))
             eigval, eigvec = eigval.flip(0), eigvec.flip(1)

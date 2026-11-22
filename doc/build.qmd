@@ -164,7 +164,7 @@ Each `RandomNN` term exposes:
 | `.uhat`                        | $\hat u_j$, of shape `(q_j, d)`, one row per level of `.levels`.                 |
 | `.levels`                      | The levels of `group`, `[None]` without it.                                      |
 | `.PEV`                         | Prediction error variance of $\hat u_j$.                                         |
-| `.pca`                         | PCA of the `"Raw embeddings"` $Z$ and of the `"Weighted embeddings"` $Z \odot \hat u_{j,k(i)}$, with $k(i)$ the group of individual $i$: `coords`, `inertia`, `eigvec` per embedding. |
+| `.pca`                         | PCA of the embeddings `"Z"` and of the weighted embeddings `"Z*u"`, $Z \odot \hat u_{j,k(i)}$, with $k(i)$ the group of individual $i$: `coords`, `inertia`, `eigvec` per embedding. |
 | `.plot(plan=(0, 1), group_by=None)` | Individual projections on the principal plan `plan`, colored by `group_by`, a qualitative column of `data`. Defaults to the term's `group`, monochrome without it. |
 
 The `Random` terms expose their [pyreml]{.pyreml} accessors.

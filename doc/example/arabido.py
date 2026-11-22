@@ -130,7 +130,7 @@ ax_score.set_xlabel("epoch")
 ax_score.set_ylabel("validation MSE")
 plt.tight_layout()
 fig.savefig("../img/m2n2_training.png", dpi=150, bbox_inches="tight")
-plt.close(fig)
+plt.show()
 
 model.random[0].plot(group_by = "country")
 model.random[1].plot()
@@ -152,9 +152,9 @@ fig.savefig("../img/m2n2_kinship.png", dpi=150, bbox_inches="tight")
 plt.close(fig)
 
 for term, title, name in [
-    (model.random[0], "Raw embeddings", "m2n2_embedding"),
-    (model.random[0], "Weighted embeddings", "m2n2_general"),
-    (model.random[1], "Weighted embeddings", "m2n2_specific"),
+    (model.random[0], "Z", "m2n2_embedding"),
+    (model.random[0], "Z*u", "m2n2_general"),
+    (model.random[1], "Z*u", "m2n2_specific"),
 ]:
     save_cloud(term.pca[title]["coords"], term.pca[title]["inertia"], name)
 
@@ -182,8 +182,7 @@ ax_score.axvline(np.argmin(nn_alone.score), color="grey", linestyle="--")
 ax_score.set_xlabel("epoch")
 ax_score.set_ylabel("validation MSE")
 plt.tight_layout()
-fig.savefig("../img/nn_training.png", dpi=150, bbox_inches="tight")
-plt.close(fig)
+plt.show()
 
 with torch.no_grad():
     nn_embedding = nn_alone.embed(z)            # embedding of every accession
