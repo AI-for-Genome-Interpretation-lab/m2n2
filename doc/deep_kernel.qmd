@@ -4,38 +4,19 @@ title: "Deep kernel"
 
 Let us consider a genomic prediction model, *i.e.* a model that aims at predicting phenotypes based on genomic markers such as single nucleotide polymorphisms (SNPs).
 The genetic linear mixed model (GBLUP or ridge regression) [@meuwissen_prediction_2001] compares individuals through the similarity of their genotypes.
+
 On the other hand, deep kernel learning [@wilson_deep_2016] consists in building a novel representation of the individuals, from which their similarity can be expressed.
 As it is learnt, this similarity draws both from the features (the genotypes) and the labels (the phenotype).
 
 This page puts these representations side by side and builds the deep kernel intuition step by step: from the genomic kinship and the ridge regression, through the neural network alone, to a bit more complex [m2n2]{.m2n2} model.
 
-## Materials and methods
-
-### Data
+## Data
 
 The following representations are computed from the *Arabidopsis thaliana* 1001 Genomes data [@alonso-blanco_1135_2016], packaged by [meiosim](https://github.com/ai-for-genome-interpretation-lab/meiosim).
 The features $z$ are the SNPs from the RegMap panel [@horton_genome-wide_2012].
 The accessions were collected in different countries, the country of origin of each accession defines its group, and its color in the figures.
 The phenotype $y$ is the days to flowering (DTF1) expressed in a common garden, from the easyGWAS project [@grimm_easygwas_2017].
 The individuals that are very similar one with each other ($\geq 90\%$ identical markers) are discarded as to keep a single individual per similarity lot.
-
-### Model
-
-The model used in this example is:
-
-$$
-y = X\beta + Z_G u_G + Z_S u_S + r,
-$$
-
-with $\beta$ an intercept and a group (country of origin) effect. On the random side:
-
-- $Z_G = \nu(z, \theta)$ is the general design matrix,
-- $Z_S = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta)$ the specific one.
-
-Both design matrix are based on the same neural network $z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d$, which is `ToyNN`, a small network provided with [m2n2]{.m2n2} for didactic purposes.
-
-The intuition is that the specific effects would represent a complex epistatic interference between the general genotype-to-phenotype mapping, and the genetic specificity of the group.
-Getting rid of the later aims at improving the identification of the former.
 
 ## Linear genomic model
 
@@ -69,13 +50,15 @@ First three principal components of the genomic kinship $K$, accessions colored 
 ### GBLUP genomic prediction
 
 The GBLUP model, $y = \mathbf{1}\mu + I_n a + r$ with $a \sim N(0, \sigma^2_a K)$, is equivalent to a ridge regression on the markers, $y = \mathbf{1}\mu + Wu + r$ with $W$ the centered allele incidence and $u \sim N(0, \sigma^2_u I_p)$.
-From the GBLUP model, the breeding values $\hat a$ can be back-solved to marker effects $\hat u$ [@gualdron_duarte_rapid_2014], and compute $W \odot \hat u$, with $\odot$ the Hadamard product.
-The weighted alleles $W \odot \hat u$ decomposes the prediction: their row sum is the predicted breeding value $\hat a$.
+From the GBLUP model, the breeding values $\hat a$ can be back-solved to marker effects $\hat u$ [@gualdron_duarte_rapid_2014].
+
+From here, we can compute $W \odot \hat u$, with $\odot$ the Hadamard product.
+The weighted alleles $W \odot \hat u$ decomposes the prediction: their row sum is the predicted breeding value $\hat a$:
 
 ::: {#fig-ridge}
 <div class="cloud3d" data-src="widgets/ridge_weighted.json"></div>
 
-Principal components of the weighted alleles $W \odot \hat ua$ of the ridge regression.
+Principal components of the weighted alleles $W \odot \hat u$ of the ridge regression.
 :::
 
 Their principal components remain close to those of the kinship: the effects associated with the markers are estimated as infinitesimal, all small and of similar magnitude, so that they reweight the marker space almost uniformly, and the contrasts between individuals emerge from their sum.
@@ -94,8 +77,21 @@ Entirely built for the prediction, their space collapses to a single dimension, 
 
 ## Mixed model with a neural network
 
-[m2n2]{.m2n2} is a (potentially) deep kernel: the network builds an internal representation $Z_G$, trained on $y$ through the REML, but intermediate.
-The mixed model reads it as a covariance, $\sigma^2_G Z_G Z_G^\top$, and sorts the general from the specific.
+The [m2n2]{.m2n2} model used in this example is:
+
+$$
+y = X\beta + Z_G u_G + Z_S u_S + r,
+$$
+
+with $\beta$ an intercept and a group (country of origin) effect. On the random side:
+
+- $Z_G = \nu(z, \theta)$ is the general design matrix,
+- $Z_S = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta)$ the specific one.
+
+Both design matrix are based on the same neural network $z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d$, which is `ToyNN`, a small network provided with [m2n2]{.m2n2} for didactic purposes.
+
+The intuition is that the specific effects would represent a complex epistatic interference between the general genotype-to-phenotype mapping, and the genetic specificity of the group.
+Getting rid of the later aims at improving the identification of the former.
 
 ### Embeddings
 
@@ -113,7 +109,7 @@ Embedding kinship $K_Z$, accessions sorted by country.
 :::
 ::::
 
-Though the 3D view cannot display it fully, the spherical normalization shows, and structures the embedding space.
+Though 3 dimensions cannot display it fully and the axes importance distort it, the spherical normalization shows and structures the embedding space.
 
 As for the markers, a kinship is computed from the centered embeddings $Z_c$:
 
@@ -153,12 +149,12 @@ Poorly represented groups are shrunk to 0, while well represented ones receive t
 In this example, the embedding space is mostly shaped by the general part, which only slightly reweights it, but it already "prepares" the specific split: on the sphere, the large groups lie as adjacent sectors, like slices of a melon, that the specific effects pull apart along their own directions.
 The slices still overlap, especially on the first principal component of the embedding space: individuals from different groups are spread over a common range, across which the general effects can be estimated.
 
+These observations, though specific to this example and furthermore to the single solution of a stochastic opitmisation process, overall show how the learnt, latent embedding space plays the interface role between the neural network modules and the higher-level mixed model in [m2n2]{.m2n2}, and how the black-box may be open to interpret how the model has built its internal representation.
+
 ## Beyond genomics
 
 The embeddings do not need to come from markers: any input an encoder can turn into embeddings, such as text, images, sounds or more abstract concepts, defines a relatedness that the mixed model can read.
-For instance, embeddings of research paper titles, from a pretrained and frozen transformer, were used in a mixed model to explain their number of citations [@marchal_bayesian_2026].
-
-[m2n2]{.m2n2} goes one step further: the encoder is trained jointly with the mixed model, on the same task.
+For instance, embeddings of research paper titles, from a pretrained and frozen transformer, were used in a mixed model to explain their number of citations [@marchal_bayesian_2026]. [m2n2]{.m2n2} goes one step further: the encoder is trained jointly with the mixed model, on the same task.
 
 ## References
 

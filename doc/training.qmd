@@ -56,6 +56,8 @@ with one term $j$ per random effect, and $R$ the covariance of the residual.
 
 - For a [pyreml]{.pyreml} `Random` term, $Z_j$ and $G_j$ follow its specification.
 
+- The [pyreml]{.pyreml} `Residual` term provides the structure for $R$.
+
 The network parameters $\theta$ only enter $V$: like the variances, they are variance parameters, estimated jointly with $\beta$ by restricted maximum of likelihood (REML):
 
 $$
