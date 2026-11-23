@@ -22,7 +22,7 @@ The individuals that are very similar one with each other ($\geq 90\%$ identical
 
 ### Genomic kinship
 
-:::: {style="float: right; width: 300px; margin-left: 1.5em;"}
+:::: {.float-fig}
 ::: {#fig-kinship}
 <img src="img/kinship.png" width="250">
 
@@ -103,7 +103,7 @@ Considering the raw embeddings $Z_G$ from the [m2n2]{.m2n2} model:
 Principal components of the [m2n2]{.m2n2} embeddings $Z_G$.
 :::
 
-:::: {style="float: right; width: 300px; margin-left: 1.5em;"}
+:::: {.float-fig}
 ::: {#fig-kinship}
 <img src="img/m2n2_kinship.png" width="250">
 
