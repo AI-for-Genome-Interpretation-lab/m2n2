@@ -122,8 +122,9 @@
     });
     svg.addEventListener("pointermove", function (ev) {
       if (state.drag) {
-        state.yaw += (ev.clientX - state.lastX) * 0.01;
-        state.pitch = Math.max(-1.5, Math.min(1.5, state.pitch + (ev.clientY - state.lastY) * 0.01));
+        // free 360° on both axes; yaw follows the drag even when the cloud is upside down
+        state.yaw += (ev.clientX - state.lastX) * 0.01 * Math.sign(Math.cos(state.pitch) || 1);
+        state.pitch += (ev.clientY - state.lastY) * 0.01;
         state.lastX = ev.clientX;
         state.lastY = ev.clientY;
         render();
