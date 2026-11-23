@@ -67,7 +67,7 @@ div.csl-indent {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-447e42e69aaa9833c0ba1b986f430b20.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-293520738ce947f8998387a330a50f79.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-eee0d47ffbbb6b0172a98e7cc31c05ca.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -182,15 +182,11 @@ window.Quarto = {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#materials-and-methods" id="toc-materials-and-methods" class="nav-link active" data-scroll-target="#materials-and-methods">Materials and methods</a>
-  <ul class="collapse">
-  <li><a href="#data" id="toc-data" class="nav-link" data-scroll-target="#data">Data</a></li>
-  <li><a href="#model" id="toc-model" class="nav-link" data-scroll-target="#model">Model</a></li>
-  </ul></li>
+  <li><a href="#data" id="toc-data" class="nav-link active" data-scroll-target="#data">Data</a></li>
   <li><a href="#linear-genomic-model" id="toc-linear-genomic-model" class="nav-link" data-scroll-target="#linear-genomic-model">Linear genomic model</a>
   <ul class="collapse">
   <li><a href="#genomic-kinship" id="toc-genomic-kinship" class="nav-link" data-scroll-target="#genomic-kinship">Genomic kinship</a></li>
-  <li><a href="#ridge-regression" id="toc-ridge-regression" class="nav-link" data-scroll-target="#ridge-regression">Ridge regression</a></li>
+  <li><a href="#gblup-genomic-prediction" id="toc-gblup-genomic-prediction" class="nav-link" data-scroll-target="#gblup-genomic-prediction">GBLUP genomic prediction</a></li>
   </ul></li>
   <li><a href="#neural-network" id="toc-neural-network" class="nav-link" data-scroll-target="#neural-network">Neural network</a></li>
   <li><a href="#mixed-model-with-a-neural-network" id="toc-mixed-model-with-a-neural-network" class="nav-link" data-scroll-target="#mixed-model-with-a-neural-network">Mixed model with a neural network</a>
@@ -227,50 +223,35 @@ window.Quarto = {
 </header>
 
 
-<p>The mixed model compares individuals through their relatedness: either directly read from the genetic similarity (GBLUP, RR-BLUP), or learnt from neural network embeddings (deep kernel). This page puts these representations side by side and builds the deep kernel intuition step by step: from the genomic kinship and the ridge regression, through the neural network alone, to <span class="m2n2">m2n2</span>.</p>
-<section id="materials-and-methods" class="level2">
-<h2 class="anchored" data-anchor-id="materials-and-methods">Materials and methods</h2>
-<section id="data" class="level3">
-<h3 class="anchored" data-anchor-id="data">Data</h3>
-<p>The following representations are computed from the <em>Arabidopsis thaliana</em> 1001 Genomes data <span class="citation" data-cites="alonso-blanco_1135_2016">(<a href="#ref-alonso-blanco_1135_2016" role="doc-biblioref">Alonso-Blanco et al., 2016</a>)</span>, packaged by <a href="https://github.com/ai-for-genome-interpretation-lab/meiosim">meiosim</a>. The features <span class="math inline">\(z\)</span> are 10,000 SNPs randomly sampled among those of the RegMap panel <span class="citation" data-cites="horton_genome-wide_2012">(<a href="#ref-horton_genome-wide_2012" role="doc-biblioref">Horton et al., 2012</a>)</span>. The accessions were collected in different countries, the country of origin of each accession defines its group, and its color in the figures. The phenotype <span class="math inline">\(y\)</span> is the days to flowering (DTF1) expressed in a common garden, from the easyGWAS project <span class="citation" data-cites="grimm_easygwas_2017">(<a href="#ref-grimm_easygwas_2017" role="doc-biblioref">Grimm et al., 2017</a>)</span>.</p>
-</section>
-<section id="model" class="level3">
-<h3 class="anchored" data-anchor-id="model">Model</h3>
-<p>The model used in this example is:</p>
-<p><span class="math display">\[
-y = X\beta + Z_G u_G + Z_S u_S + r,
-\]</span></p>
-<p>with <span class="math inline">\(\beta\)</span> an intercept and a group (country of origin) effect. On the random side:</p>
-<ul>
-<li><span class="math inline">\(Z_G = \nu(z, \theta)\)</span> is the general design matrix,</li>
-<li><span class="math inline">\(Z_S = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta)\)</span> the specific one.</li>
-</ul>
-<p>Both design matrix are based on the same neural network <span class="math inline">\(z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d\)</span>, which is <code>ToyNN</code>, a small network provided with <span class="m2n2">m2n2</span> for didactic purposes.</p>
-<p>The intuition is that the specific effects would represent a complex epistatic interference between the general genotype-to-phenotype mapping, and the genetic specificity of the group. Getting rid of the later aims at improving the identification of the former.</p>
-</section>
+<p>Let us consider a genomic prediction model, <em>i.e.</em> a model that aims at predicting phenotypes based on genomic markers such as single nucleotide polymorphisms (SNPs). The genetic linear mixed model (GBLUP or ridge regression) <span class="citation" data-cites="meuwissen_prediction_2001">(<a href="#ref-meuwissen_prediction_2001" role="doc-biblioref">Meuwissen et al., 2001</a>)</span> compares individuals through the similarity of their genotypes.</p>
+<p>On the other hand, deep kernel learning <span class="citation" data-cites="wilson_deep_2016">(<a href="#ref-wilson_deep_2016" role="doc-biblioref">Wilson et al., 2016</a>)</span> consists in building a novel representation of the individuals, from which their similarity can be expressed. As it is learnt, this similarity draws both from the features (the genotypes) and the labels (the phenotype).</p>
+<p>This page puts these representations side by side and builds the deep kernel intuition step by step: from the genomic kinship and the ridge regression, through the neural network alone, to a bit more complex <span class="m2n2">m2n2</span> model.</p>
+<section id="data" class="level2">
+<h2 class="anchored" data-anchor-id="data">Data</h2>
+<p>The following representations are computed from the <em>Arabidopsis thaliana</em> 1001 Genomes data <span class="citation" data-cites="alonso-blanco_1135_2016">(<a href="#ref-alonso-blanco_1135_2016" role="doc-biblioref">Alonso-Blanco et al., 2016</a>)</span>, packaged by <a href="https://github.com/ai-for-genome-interpretation-lab/meiosim">meiosim</a>. The features <span class="math inline">\(z\)</span> are the SNPs from the RegMap panel <span class="citation" data-cites="horton_genome-wide_2012">(<a href="#ref-horton_genome-wide_2012" role="doc-biblioref">Horton et al., 2012</a>)</span>. The accessions were collected in different countries, the country of origin of each accession defines its group, and its color in the figures. The phenotype <span class="math inline">\(y\)</span> is the days to flowering (DTF1) expressed in a common garden, from the easyGWAS project <span class="citation" data-cites="grimm_easygwas_2017">(<a href="#ref-grimm_easygwas_2017" role="doc-biblioref">Grimm et al., 2017</a>)</span>. The individuals that are very similar one with each other (<span class="math inline">\(\geq 90\%\)</span> identical markers) are discarded as to keep a single individual per similarity lot.</p>
 </section>
 <section id="linear-genomic-model" class="level2">
 <h2 class="anchored" data-anchor-id="linear-genomic-model">Linear genomic model</h2>
 <section id="genomic-kinship" class="level3">
 <h3 class="anchored" data-anchor-id="genomic-kinship">Genomic kinship</h3>
-<p>The genomic kinship is classically computed as:</p>
-<p><span class="math display">\[
-K = \frac{W W^\top}{\sum_j 2p_j(1-p_j)},
-\]</span></p>
-<p>with <span class="math inline">\(W\)</span> the centered markers and <span class="math inline">\(p_j\)</span> the allele frequencies <span class="citation" data-cites="vanraden_efficient_2008">(<a href="#ref-vanraden_efficient_2008" role="doc-biblioref">VanRaden, 2008</a>)</span>. It represents the genetic relatedness between individuals.</p>
+<div style="float: right; width: 300px; margin-left: 1.5em;">
 <div id="fig-kinship" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-kinship-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<p align="center">
-<img src="img/kinship.png" width="500" class="figure-img">
-</p>
+<p><img src="img/kinship.png" width="250" class="figure-img"></p>
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-kinship-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;1: Genomic kinship <span class="math inline">\(K\)</span>, accessions sorted by country.
 </figcaption>
 </figure>
 </div>
-<p>This structure can also be observed by a principal component analysis of the SNP matrix.</p>
+</div>
+<p>The genomic kinship used in a GBLUP genomic prediction model is classically computed as:</p>
+<p><span class="math display">\[
+K = \frac{W W^\top}{\sum_j 2p_j(1-p_j)},
+\]</span></p>
+<p>with <span class="math inline">\(W\)</span> the centered markers and <span class="math inline">\(p_j\)</span> the allele frequencies <span class="citation" data-cites="vanraden_efficient_2008">(<a href="#ref-vanraden_efficient_2008" role="doc-biblioref">VanRaden, 2008</a>)</span>. It represents the genetic relatedness between individuals.</p>
+<p>This structure can also be observed by a principal component analysis of the SNP matrix <span class="math inline">\(W\)</span>:</p>
 <div id="fig-kinship-pca" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-kinship-pca-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -284,9 +265,10 @@ Figure&nbsp;2: First three principal components of the genomic kinship <span cla
 </figure>
 </div>
 </section>
-<section id="ridge-regression" class="level3">
-<h3 class="anchored" data-anchor-id="ridge-regression">Ridge regression</h3>
-<p>The ridge regression on the markers, <span class="math inline">\(y = \mathbf{1}\mu + Wa + r\)</span> with <span class="math inline">\(W\)</span> the centered allele incidence and <span class="math inline">\(a \sim N(0, \sigma^2_a I)\)</span>, is equivalent to the GBLUP on <span class="math inline">\(K\)</span>. The weighted alleles <span class="math inline">\(W \odot \hat a\)</span> (with <span class="math inline">\(\odot\)</span> the Hadamard product) decompose the prediction: their row sum is the predicted breeding value.</p>
+<section id="gblup-genomic-prediction" class="level3">
+<h3 class="anchored" data-anchor-id="gblup-genomic-prediction">GBLUP genomic prediction</h3>
+<p>The GBLUP model, <span class="math inline">\(y = \mathbf{1}\mu + I_n a + r\)</span> with <span class="math inline">\(a \sim N(0, \sigma^2_a K)\)</span>, is equivalent to a ridge regression on the markers, <span class="math inline">\(y = \mathbf{1}\mu + Wu + r\)</span> with <span class="math inline">\(W\)</span> the centered allele incidence and <span class="math inline">\(u \sim N(0, \sigma^2_u I_p)\)</span>. From the GBLUP model, the breeding values <span class="math inline">\(\hat a\)</span> can be back-solved to marker effects <span class="math inline">\(\hat u\)</span> <span class="citation" data-cites="gualdron_duarte_rapid_2014">(<a href="#ref-gualdron_duarte_rapid_2014" role="doc-biblioref">Gualdrón Duarte et al., 2014</a>)</span>.</p>
+<p>From here, we can compute <span class="math inline">\(W \odot \hat u\)</span>, with <span class="math inline">\(\odot\)</span> the Hadamard product. The weighted alleles <span class="math inline">\(W \odot \hat u\)</span> decomposes the prediction: their row sum is the predicted breeding value <span class="math inline">\(\hat a\)</span>:</p>
 <div id="fig-ridge" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-ridge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -295,7 +277,7 @@ Figure&nbsp;2: First three principal components of the genomic kinship <span cla
 </div>
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-ridge-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-Figure&nbsp;3: Principal components of the weighted alleles <span class="math inline">\(W \odot \hat a\)</span> of the ridge regression.
+Figure&nbsp;3: Principal components of the weighted alleles <span class="math inline">\(W \odot \hat u\)</span> of the ridge regression.
 </figcaption>
 </figure>
 </div>
@@ -304,7 +286,7 @@ Figure&nbsp;3: Principal components of the weighted alleles <span class="math in
 </section>
 <section id="neural-network" class="level2">
 <h2 class="anchored" data-anchor-id="neural-network">Neural network</h2>
-<p>A network trained alone predicts <span class="math inline">\(\hat y = e^\top w + b\)</span>, with <span class="math inline">\(e\)</span> the embeddings of its last layer.</p>
+<p>A network trained alone predicts <span class="math inline">\(\hat y = e^\top \omega + b\)</span>, with <span class="math inline">\(e\)</span> the embeddings of its last layer, <span class="math inline">\(\omega\)</span> the weights of the output layer, and <span class="math inline">\(b\)</span> the bias of the output layer:</p>
 <div id="fig-nn-embedding" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-nn-embedding-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -317,13 +299,24 @@ Figure&nbsp;4: Principal components of the embeddings <span class="math inline">
 </figcaption>
 </figure>
 </div>
-<p>Entirely built for the prediction, their space collapses to a single dimension, parallel to <span class="math inline">\(\hat y\)</span>.</p>
+<p>Entirely built for the prediction, their space collapses to a single dimension, parallel to <span class="math inline">\(\hat y\)</span>. The weighted embedding <span class="math inline">\(e \odot \omega\)</span> show the same pattern.</p>
 </section>
 <section id="mixed-model-with-a-neural-network" class="level2">
 <h2 class="anchored" data-anchor-id="mixed-model-with-a-neural-network">Mixed model with a neural network</h2>
-<p><span class="m2n2">m2n2</span> is a (potentially) deep kernel <span class="citation" data-cites="wilson_deep_2016">(<a href="#ref-wilson_deep_2016" role="doc-biblioref">Wilson et al., 2016</a>)</span>: the network builds an internal representation <span class="math inline">\(Z_G\)</span>, trained on <span class="math inline">\(y\)</span> through the REML, but intermediate. The mixed model reads it as a covariance, <span class="math inline">\(\sigma^2_G Z_G Z_G^\top\)</span>, and sorts the general from the specific.</p>
+<p>The <span class="m2n2">m2n2</span> model used in this example is:</p>
+<p><span class="math display">\[
+y = X\beta + Z_G u_G + Z_S u_S + r,
+\]</span></p>
+<p>with <span class="math inline">\(\beta\)</span> an intercept and a group (country of origin) effect. On the random side:</p>
+<ul>
+<li><span class="math inline">\(Z_G = \nu(z, \theta)\)</span> is the general design matrix,</li>
+<li><span class="math inline">\(Z_S = \bigoplus_{k=1}^{q} \nu(z_{(k)}, \theta)\)</span> the specific one.</li>
+</ul>
+<p>Both design matrix are based on the same neural network <span class="math inline">\(z_i \mapsto \nu(z_i, \theta) \in \mathbb{R}^d\)</span>, which is <code>ToyNN</code>, a small network provided with <span class="m2n2">m2n2</span> for didactic purposes.</p>
+<p>The intuition is that the specific effects would represent a complex epistatic interference between the general genotype-to-phenotype mapping, and the genetic specificity of the group. Getting rid of the later aims at improving the identification of the former.</p>
 <section id="embeddings" class="level3">
 <h3 class="anchored" data-anchor-id="embeddings">Embeddings</h3>
+<p>Considering the raw embeddings <span class="math inline">\(Z_G\)</span> from the <span class="m2n2">m2n2</span> model:</p>
 <div id="fig-m2n2-embedding" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-m2n2-embedding-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -336,28 +329,28 @@ Figure&nbsp;5: Principal components of the <span class="m2n2">m2n2</span> embedd
 </figcaption>
 </figure>
 </div>
-<p>Though the 3D view cannot display it fully, the spherical normalization shows, and structures the embedding space.</p>
-<p>As for the markers, a kinship is computed from the centered embeddings <span class="math inline">\(Z_c\)</span>:</p>
-<p><span class="math display">\[
-K_Z = \frac{Z_c Z_c^\top}{\sum_j \mathrm{var}(z_j)}.
-\]</span></p>
-<p>It is a proximity not in the genome, but in the learnt embeddings.</p>
-<div id="fig-m2n2-kinship" class="quarto-float quarto-figure quarto-figure-center anchored">
+<div style="float: right; width: 300px; margin-left: 1.5em;">
+<div id="fig-kinship" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
-<div aria-describedby="fig-m2n2-kinship-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
-<p align="center">
-<img src="img/m2n2_kinship.png" width="500" class="figure-img">
-</p>
+<div aria-describedby="fig-kinship-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<p><img src="img/m2n2_kinship.png" width="250" class="figure-img"></p>
 </div>
-<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-m2n2-kinship-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-kinship-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;6: Embedding kinship <span class="math inline">\(K_Z\)</span>, accessions sorted by country.
 </figcaption>
 </figure>
 </div>
+</div>
+<p>Though 3 dimensions cannot display it fully and the axes importance distort it, the spherical normalization shows and structures the embedding space.</p>
+<p>As for the markers, a kinship is computed from the centered embeddings <span class="math inline">\(Z_c\)</span>:</p>
+<p><span class="math display">\[
+K_Z = \frac{Z_c Z_c^\top}{\sum_j \mathrm{var}(z_j)}.
+\]</span></p>
+<p>It is a proximity not only in the genome, but in the learnt embeddings.</p>
 </section>
 <section id="general-weighted-embeddings" class="level3">
 <h3 class="anchored" data-anchor-id="general-weighted-embeddings">General weighted embeddings</h3>
-<p><span class="math inline">\(Z_G \odot \hat u_G\)</span>, whose row sums are the general part of the predicted value.</p>
+<p><span class="math inline">\(Z_G \odot \hat u_G\)</span>, whose row sums are the general part of the predicted value:</p>
 <div id="fig-m2n2-general" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-m2n2-general-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -370,11 +363,11 @@ Figure&nbsp;7: Principal components of the general weighted embeddings <span cla
 </figcaption>
 </figure>
 </div>
-<p>Just like the infinitesimal effects of the ridge regression barely alter the marker space, the general embedding effects are reminescent of the embedding space: both views are relatively close.</p>
+<p>Just like the infinitesimal effects of the ridge regression barely alter the marker space, the general embedding effects are reminescent of the embedding space: both views are close.</p>
 </section>
 <section id="specific-weighted-embeddings" class="level3">
 <h3 class="anchored" data-anchor-id="specific-weighted-embeddings">Specific weighted embeddings</h3>
-<p><span class="math inline">\(Z_G \odot \hat u_{S,k(i)}\)</span>, with <span class="math inline">\(k(i)\)</span> the group of individual <span class="math inline">\(i\)</span>, whose row sums are the specific part of the predicted genetic value.</p>
+<p><span class="math inline">\(Z_G \odot \hat u_{S,k(i)}\)</span>, with <span class="math inline">\(k(i)\)</span> the group of individual <span class="math inline">\(i\)</span>, whose row sums are the specific part of the predicted genetic value:</p>
 <div id="fig-m2n2-specific" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-m2n2-specific-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -392,12 +385,12 @@ Figure&nbsp;8: Principal components of the specific weighted embeddings <span cl
 <section id="observations" class="level3">
 <h3 class="anchored" data-anchor-id="observations">Observations</h3>
 <p>In this example, the embedding space is mostly shaped by the general part, which only slightly reweights it, but it already “prepares” the specific split: on the sphere, the large groups lie as adjacent sectors, like slices of a melon, that the specific effects pull apart along their own directions. The slices still overlap, especially on the first principal component of the embedding space: individuals from different groups are spread over a common range, across which the general effects can be estimated.</p>
+<p>These observations, though specific to this example and furthermore to the single solution of a stochastic opitmisation process, overall show how the learnt, latent embedding space plays the interface role between the neural network modules and the higher-level mixed model in <span class="m2n2">m2n2</span>, and how the black-box may be open to interpret how the model has built its internal representation.</p>
 </section>
 </section>
 <section id="beyond-genomics" class="level2">
 <h2 class="anchored" data-anchor-id="beyond-genomics">Beyond genomics</h2>
-<p>The embeddings do not need to come from markers: any input an encoder can turn into embeddings, such as text, images, sounds or more abstract concepts, defines a relatedness that the mixed model can read. For instance, embeddings of research paper titles, from a pretrained and frozen transformer, were used in a mixed model to explain their number of citations <span class="citation" data-cites="marchal_bayesian_2026">(<a href="#ref-marchal_bayesian_2026" role="doc-biblioref">Marchal et al., 2026</a>)</span>.</p>
-<p><span class="m2n2">m2n2</span> goes one step further: the encoder is trained jointly with the mixed model, on the same task.</p>
+<p>The embeddings do not need to come from markers: any input an encoder can turn into embeddings, such as text, images, sounds or more abstract concepts, defines a relatedness that the mixed model can read. For instance, embeddings of research paper titles, from a pretrained and frozen transformer, were used in a mixed model to explain their number of citations <span class="citation" data-cites="marchal_bayesian_2026">(<a href="#ref-marchal_bayesian_2026" role="doc-biblioref">Marchal et al., 2026</a>)</span>. <span class="m2n2">m2n2</span> goes one step further: the encoder is trained jointly with the mixed model, on the same task.</p>
 </section>
 <section id="references" class="level2">
 <h2 class="anchored" data-anchor-id="references">References</h2>
@@ -408,11 +401,17 @@ Alonso-Blanco, C., Andrade, J., Becker, C., Bemm, F., Bergelson, J., Borgwardt, 
 <div id="ref-grimm_easygwas_2017" class="csl-entry" role="listitem">
 Grimm, D. G., Roqueiro, D., Salomé, P. A., Kleeberger, S., Greshake, B., Zhu, W., Liu, C., Lippert, C., Stegle, O., Schölkopf, B., Weigel, D., &amp; Borgwardt, K. M. (2017). <span class="nocase">easyGWAS</span>: <span>A</span> <span>Cloud</span>-<span>Based</span> <span>Platform</span> for <span>Comparing</span> the <span>Results</span> of <span>Genome</span>-<span>Wide</span> <span>Association</span> <span>Studies</span>. <em>The Plant Cell</em>, <em>29</em>(1), 5–19. <a href="https://doi.org/10.1105/tpc.16.00551">https://doi.org/10.1105/tpc.16.00551</a>
 </div>
+<div id="ref-gualdron_duarte_rapid_2014" class="csl-entry" role="listitem">
+Gualdrón Duarte, J. L., Cantet, R. J., Bates, R. O., Ernst, C. W., Raney, N. E., &amp; Steibel, J. P. (2014). Rapid screening for phenotype-genotype associations by linear transformations of genomic evaluations. <em>BMC Bioinformatics</em>, <em>15</em>(1), 246. <a href="https://doi.org/10.1186/1471-2105-15-246">https://doi.org/10.1186/1471-2105-15-246</a>
+</div>
 <div id="ref-horton_genome-wide_2012" class="csl-entry" role="listitem">
 Horton, M. W., Hancock, A. M., Huang, Y. S., Toomajian, C., Atwell, S., Auton, A., Muliyati, N. W., Platt, A., Sperone, F. G., Vilhjálmsson, B. J., Nordborg, M., Borevitz, J. O., &amp; Bergelson, J. (2012). Genome-wide patterns of genetic variation in worldwide <span>Arabidopsis</span> thaliana accessions from the <span>RegMap</span> panel. <em>Nature Genetics</em>, <em>44</em>(2), 212–216. <a href="https://doi.org/10.1038/ng.1042">https://doi.org/10.1038/ng.1042</a>
 </div>
 <div id="ref-marchal_bayesian_2026" class="csl-entry" role="listitem">
 Marchal, A., Lamure, M., Lefort, T., &amp; Imbach, F. (2026). Bayesian <span>Implementation</span> of the <span>Factor</span>‐<span>Analytic</span> <span>Mixed</span> <span>Model</span> and <span>Application</span> to <span>Embeddings</span>. <em>Stat</em>, <em>15</em>(3), e70164. <a href="https://doi.org/10.1002/sta4.70164">https://doi.org/10.1002/sta4.70164</a>
+</div>
+<div id="ref-meuwissen_prediction_2001" class="csl-entry" role="listitem">
+Meuwissen, T. H. E., Hayes, B. J., &amp; Goddard, M. E. (2001). Prediction of total genetic value using genome-wide dense marker maps. <em>Genetics</em>, <em>157</em>(4), 1819–1829.
 </div>
 <div id="ref-vanraden_efficient_2008" class="csl-entry" role="listitem">
 VanRaden, P. M. (2008). Efficient <span>Methods</span> to <span>Compute</span> <span>Genomic</span> <span>Predictions</span>. <em>Journal of Dairy Science</em>, <em>91</em>(11), 4414–4423. <a href="https://doi.org/10.3168/jds.2007-0980">https://doi.org/10.3168/jds.2007-0980</a>

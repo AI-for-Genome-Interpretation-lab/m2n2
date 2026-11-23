@@ -102,7 +102,7 @@ div.csl-indent {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-447e42e69aaa9833c0ba1b986f430b20.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-293520738ce947f8998387a330a50f79.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-eee0d47ffbbb6b0172a98e7cc31c05ca.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -219,16 +219,11 @@ window.Quarto = {
   <ul>
   <li><a href="#the-fit-method" id="toc-the-fit-method" class="nav-link active" data-scroll-target="#the-fit-method">The fit method</a></li>
   <li><a href="#initialization" id="toc-initialization" class="nav-link" data-scroll-target="#initialization">Initialization</a></li>
-  <li><a href="#loss-function" id="toc-loss-function" class="nav-link" data-scroll-target="#loss-function">Loss function</a>
-  <ul class="collapse">
+  <li><a href="#loss-function" id="toc-loss-function" class="nav-link" data-scroll-target="#loss-function">Loss function</a></li>
   <li><a href="#minibatches" id="toc-minibatches" class="nav-link" data-scroll-target="#minibatches">Minibatches</a></li>
-  </ul></li>
   <li><a href="#validation-and-early-stopping" id="toc-validation-and-early-stopping" class="nav-link" data-scroll-target="#validation-and-early-stopping">Validation and early stopping</a></li>
   <li><a href="#polish" id="toc-polish" class="nav-link" data-scroll-target="#polish">Polish</a></li>
-  <li><a href="#monitoring" id="toc-monitoring" class="nav-link" data-scroll-target="#monitoring">Monitoring</a>
-  <ul class="collapse">
-  <li><a href="#training-curves" id="toc-training-curves" class="nav-link" data-scroll-target="#training-curves">Training curves</a></li>
-  </ul></li>
+  <li><a href="#monitoring" id="toc-monitoring" class="nav-link" data-scroll-target="#monitoring">Monitoring</a></li>
   <li><a href="#references" id="toc-references" class="nav-link" data-scroll-target="#references">References</a></li>
   </ul>
 </nav>
@@ -255,7 +250,13 @@ window.Quarto = {
 </header>
 
 
-<p><span class="m2n2">m2n2</span> trains the networks, the fixed effects <span class="math inline">\(\beta\)</span> and the variances jointly, by minibatch gradient descent on the REML loss. The networks are then frozen, and the mixed model is polished by <span class="pyreml">pyreml</span>.</p>
+<p><span class="m2n2">m2n2</span> whole training pipeline is:</p>
+<ol type="1">
+<li><a href="#initialization">Initialization</a> of <span class="math inline">\(\beta\)</span> and all non-<code>RandomNN</code> variances.</li>
+<li><a href="#minibatches">minibatches</a> gradient descent on the <a href="#loss-function">loss</a> of the network parameters, <span class="math inline">\(\beta\)</span> and all variances.</li>
+<li><a href="#validation-and-early-stopping">Validation</a> at each epoch, early stopping and restoration of the best state.</li>
+<li><a href="#polish">Polish</a>: REML and HMME with the networks frozen.</li>
+</ol>
 <section id="the-fit-method" class="level2">
 <h2 class="anchored" data-anchor-id="the-fit-method">The fit method</h2>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>model.fit(</span>
@@ -300,13 +301,6 @@ window.Quarto = {
 </tr>
 </tbody>
 </table>
-<p>The pipeline:</p>
-<ol start="0" type="1">
-<li><a href="#initialization">Initialization</a> of <span class="math inline">\(\beta\)</span> and the variances, OLS only with <code>full_REML = False</code>.</li>
-<li>REML descent of the network parameters, <span class="math inline">\(\beta\)</span> and the variances, on <a href="#minibatches">minibatches</a> (see <a href="#loss-function">Loss function</a>).</li>
-<li><a href="#validation-and-early-stopping">Validation</a> at each epoch, early stopping and restoration of the best state.</li>
-<li><a href="#polish">Polish</a>: REML and HMME with the networks frozen, HMME only with <code>full_REML = False</code>.</li>
-</ol>
 </section>
 <section id="initialization" class="level2">
 <h2 class="anchored" data-anchor-id="initialization">Initialization</h2>
@@ -320,7 +314,12 @@ y \sim N\big(X\beta,\ V\big),
 \qquad
 V = \sum_j Z_j G_j Z_j^\top + R,
 \]</span></p>
-<p>with one term <span class="math inline">\(j\)</span> per random effect, and <span class="math inline">\(R\)</span> the covariance of the residual. For a <code>RandomNN</code> term, <span class="math inline">\(Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)\)</span>, with <span class="math inline">\(\nu\)</span> the network of its <code>Embedding</code> and <span class="math inline">\(q_j\)</span> the number of groups, and <span class="math inline">\(G_j = \sigma^2_{u_j} I\)</span>; with several responses, <span class="math inline">\(G_j = S_j \otimes I_{q_j d}\)</span> (see <a href="./build.html#several-responses">Several responses</a>). For a <span class="pyreml">pyreml</span> <code>Random</code> term, <span class="math inline">\(Z_j\)</span> and <span class="math inline">\(G_j\)</span> follow its specification.</p>
+<p>with one term <span class="math inline">\(j\)</span> per random effect, and <span class="math inline">\(R\)</span> the covariance of the residual.</p>
+<ul>
+<li><p>For a <code>RandomNN</code> term, <span class="math inline">\(Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)\)</span>, with <span class="math inline">\(\nu\)</span> the network of its <code>Embedding</code> and <span class="math inline">\(q_j\)</span> the number of groups, and <span class="math inline">\(G_j = \sigma^2_{u_j} I\)</span>; with several responses, <span class="math inline">\(G_j = S_j \otimes I_{q_j d}\)</span> (see <a href="./build.html#several-responses">Several responses</a>).</p></li>
+<li><p>For a <span class="pyreml">pyreml</span> <code>Random</code> term, <span class="math inline">\(Z_j\)</span> and <span class="math inline">\(G_j\)</span> follow its specification.</p></li>
+<li><p>The <span class="pyreml">pyreml</span> <code>Residual</code> term provides the structure for <span class="math inline">\(R\)</span>.</p></li>
+</ul>
 <p>The network parameters <span class="math inline">\(\theta\)</span> only enter <span class="math inline">\(V\)</span>: like the variances, they are variance parameters, estimated jointly with <span class="math inline">\(\beta\)</span> by restricted maximum of likelihood (REML):</p>
 <p><span class="math display">\[
 -2\ell_{\text{REML}} = \log\lvert V\rvert
@@ -331,12 +330,12 @@ V = \sum_j Z_j G_j Z_j^\top + R,
 r = y - X\beta.
 \]</span></p>
 <p>The random effects <span class="math inline">\(u_j\)</span> do not enter the loss: they are predicted afterwards by solving Henderson’s mixed model equations (HMME).</p>
-<section id="minibatches" class="level3">
-<h3 class="anchored" data-anchor-id="minibatches">Minibatches</h3>
+</section>
+<section id="minibatches" class="level2">
+<h2 class="anchored" data-anchor-id="minibatches">Minibatches</h2>
 <p>At each epoch, the labelled training individuals are shuffled and split into minibatches of <code>batch_size</code> individuals, the incomplete last batch dropped. An individual enters a minibatch with all its observed responses, which the residual may correlate. As the embeddings are computed row-wise, the covariance of a minibatch <span class="math inline">\(B\)</span> is the submatrix <span class="math inline">\(V_B\)</span> of <span class="math inline">\(V\)</span>, and <span class="math inline">\(y_B \sim N(X_B\beta, V_B)\)</span> exactly: the loss of a minibatch is the REML of the corresponding sub-model. When a level is absent from the minibatch, <span class="math inline">\(X_B\)</span> loses rank, <em>e.g.</em> an empty column, or the reference level of a qualitative effect, the intercept being then the sum of the present dummies. The REML of the sub-model is then computed on a basis of the columns of <span class="math inline">\(X_B\)</span>, selected by pivoted QR: the fixed effects it cannot estimate are left out of this minibatch. The observations are not independent: they share the <span class="math inline">\(u_j\)</span>, and <span class="math inline">\(V\)</span> is not diagonal. The minibatch losses therefore do not add up to the full REML: minibatch descent is a stochastic approximation of it, which performs well empirically <span class="citation" data-cites="simchoni_integrating_2023">(<a href="#ref-simchoni_integrating_2023" role="doc-biblioref">Simchoni &amp; Rosset, 2023</a>)</span>.</p>
 <p>The loss is computed by <span class="pyreml">pyreml</span>, on the <a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#smw">SMW</a> path when the total number of columns of <span class="math inline">\(Z = [Z_1 \mid Z_2 \mid \dots]\)</span> is below <span class="math inline">\(n_B\)</span>, on <span class="math inline">\(V_B\)</span> directly otherwise. The gradient flows by autograd through the variances, <span class="math inline">\(\beta\)</span> and the networks. Each network is stepped by the optimizer of its <code>Embedding</code>, AdamW <span class="citation" data-cites="loshchilov_decoupled_2019">(<a href="#ref-loshchilov_decoupled_2019" role="doc-biblioref">Loshchilov &amp; Hutter, 2019</a>)</span> by default, and <span class="math inline">\(\beta\)</span> and the variances by Adam <span class="citation" data-cites="kingma_adam_2017">(<a href="#ref-kingma_adam_2017" role="doc-biblioref">Kingma &amp; Ba, 2017</a>)</span>, at the learning rates <code>lr_beta</code> and <code>lr_var</code>. A network shared by several terms is embedded once per minibatch: its gradient gathers the contributions of all of them, and its optimizer steps once.</p>
 <p><code>model.loss</code> records the mean minibatch loss of each epoch. It scales with <span class="math inline">\(n_B\)</span>: curves are comparable at fixed <code>batch_size</code> only.</p>
-</section>
 </section>
 <section id="validation-and-early-stopping" class="level2">
 <h2 class="anchored" data-anchor-id="validation-and-early-stopping">Validation and early stopping</h2>
@@ -398,14 +397,11 @@ V_t = Z_t G Z_t^\top + R_t,
 </tbody>
 </table>
 <p>The <code>opti_REML</code> accessors are not set with <code>full_REML = False</code>.</p>
-<section id="training-curves" class="level3">
-<h3 class="anchored" data-anchor-id="training-curves">Training curves</h3>
-<p><code>model.plot()</code> plots them, here on a small example:</p>
+<p><code>model.plot()</code> plots the training curves, here on a small example:</p>
 <p align="center">
 <img src="img/m2n2_training.png" width="700">
 </p>
 <p>The validation MSE rises once the networks overfit; the dashed line marks the restored epoch, from which the <a href="#polish">polish</a> is run.</p>
-</section>
 </section>
 <section id="references" class="level2">
 <h2 class="anchored" data-anchor-id="references">References</h2>
