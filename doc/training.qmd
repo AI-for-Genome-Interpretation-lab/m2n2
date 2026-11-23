@@ -51,8 +51,10 @@ V = \sum_j Z_j G_j Z_j^\top + R,
 $$
 
 with one term $j$ per random effect, and $R$ the covariance of the residual.
-For a `RandomNN` term, $Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)$, with $\nu$ the network of its `Embedding` and $q_j$ the number of groups, and $G_j = \sigma^2_{u_j} I$; with several responses, $G_j = S_j \otimes I_{q_j d}$ (see [Several responses](build.qmd#several-responses)).
-For a [pyreml]{.pyreml} `Random` term, $Z_j$ and $G_j$ follow its specification.
+
+- For a `RandomNN` term, $Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)$, with $\nu$ the network of its `Embedding` and $q_j$ the number of groups, and $G_j = \sigma^2_{u_j} I$; with several responses, $G_j = S_j \otimes I_{q_j d}$ (see [Several responses](build.qmd#several-responses)).
+
+- For a [pyreml]{.pyreml} `Random` term, $Z_j$ and $G_j$ follow its specification.
 
 The network parameters $\theta$ only enter $V$: like the variances, they are variance parameters, estimated jointly with $\beta$ by restricted maximum of likelihood (REML):
 

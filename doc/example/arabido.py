@@ -14,7 +14,17 @@ from meiosim.Population import MISSING
 from m2n2 import MixedModelNN, Embedding, RandomNN, ToyNN
 from pyreml import Residual
 
-pop = Arabidopsis(n_SNPs=10_000, seed=42)
+pop = Arabidopsis(n_SNPs=0, seed=42)
+
+missing = pop.genotypes == MISSING
+Z = pop.genotypes.astype(np.float32) - 1.0
+Z[missing] = 0.0
+C = (Z @ Z.T) / Z.shape[1]
+
+# remove clones / quasi-clones
+dup = (np.triu(C, 1) >= 0.90).any(axis=0)
+pop = pop.subset(list(np.where(~dup)[0]))
+
 data = pop.phenotypes[["individual", "DTF1"]].merge(
     pop.metadata[["individual", "country"]], on="individual"
 )
@@ -42,7 +52,7 @@ def save_cloud(coords, inertia, name):
             "colors": [to_hex(c) for c in palette],
             "group": codes.tolist(),
             "coords": np.round(coords[:, :3], 4).tolist(),
-        }, f)
+        }, f, indent=1)
 
 # %%
 # genomic kinship (VanRaden) and its PCA
@@ -52,11 +62,11 @@ from pyreml import A_genomic
 K = A_genomic(z.numpy().astype(np.float64) - 1)  # dosages recoded to -1 / 0 / 1
 
 order = data["country"].argsort(kind="stable").to_numpy()  # accessions grouped by country
-fig, ax = plt.subplots(figsize=(6, 5))
+fig, ax = plt.subplots(figsize=(3, 2.5))
 sns.heatmap(K[np.ix_(order, order)], cmap="coolwarm", center=0, square=True, xticklabels=False, yticklabels=False, ax=ax)
-ax.set_title("G (additive, genomic)")
+ax.set_title("G (additive, genomic)", fontsize=10)
 plt.tight_layout()
-fig.savefig("../img/kinship.png", dpi=150, bbox_inches="tight")
+fig.savefig("../img/kinship.png", dpi=300, bbox_inches="tight")
 plt.close(fig)
 
 eigval, eigvec = np.linalg.eigh(K)
@@ -135,11 +145,11 @@ with torch.no_grad():
 Z_c = Z - Z.mean(dim=0)
 K_Z = (Z_c @ Z_c.T / Z.var(dim=0).sum()).cpu().numpy()
 
-fig, ax = plt.subplots(figsize=(6, 5))
+fig, ax = plt.subplots(figsize=(3, 2.5))
 sns.heatmap(K_Z[np.ix_(order, order)], cmap="coolwarm", center=0, square=True, xticklabels=False, yticklabels=False, ax=ax)
-ax.set_title("K (embeddings, VanRaden-like)")
+ax.set_title("K (embeddings, VanRaden-like)", fontsize=10)
 plt.tight_layout()
-fig.savefig("../img/m2n2_kinship.png", dpi=150, bbox_inches="tight")
+fig.savefig("../img/m2n2_kinship.png", dpi=300, bbox_inches="tight")
 plt.close(fig)
 
 for term, title, name in [
@@ -182,26 +192,29 @@ with torch.no_grad():
 save_cloud(*pca(nn_embedding), "nn_embedding")
 
 # %%
-# RR-BLUP: ridge regression on the markers, y = 1 mu + M a + e, a ~ N(0, s2_a I)
-from pyreml import MixedModel
+# GBLUP: y = 1 mu + g + e, g ~ N(0, s2_g K), K shrunk to be positive definite
+from pyreml import MixedModel, Random
 
+K_s = A_genomic(z.numpy().astype(np.float64) - 1, shrink=True)
+gblup = MixedModel.from_dataframe(
+    data=data[labelled],
+    response="DTF1",
+    fixed="1",
+    random=Random(
+        unit="individual",
+        right_hand="str",
+        covariance=K_s,
+        matrix_index=data["individual"].tolist(),  # every accession, missing DTF1 included
+    ),
+    residual=Residual(),
+).fit()
+gblup.random[0].variance["sigma"], gblup.residual.variance["sigma"]
+
+table = gblup.random[0].table.set_index("unit")
+gblup_prediction = torch.tensor(table.loc[data["individual"], "prediction"].to_numpy())
+
+# marker effects back-solved from the GEBVs: minimal-norm least squares, M a ≈ g (exact without shrinkage)
 M = (z - z.mean(dim=0)).double()  # centered markers
-y = torch.tensor(data.loc[labelled, "DTF1"].to_numpy(), dtype=torch.double).reshape(-1, 1)
-X = torch.ones_like(y)
-
-log_sa = torch.tensor(np.log(y.var().item() / M.shape[1]), dtype=torch.double, requires_grad=True)
-log_se = torch.tensor(np.log(y.var().item()), dtype=torch.double, requires_grad=True)
-
-def varmeth(self):
-    G = torch.exp(log_sa) * torch.eye(self.q, dtype=self.dtype, device=self.device)
-    R = torch.exp(log_se) * torch.eye(self.n, dtype=self.dtype, device=self.device)
-    return G, R
-
-rrblup = MixedModel(y=y, X=X, Z=M[labelled], params=[log_sa, log_se], varmeth=varmeth)
-rrblup.fit()
-
-rrblup_prediction = (M @ rrblup.uhat).flatten()  # M a of every accession, missing DTF1 included
-log_sa.exp().item(), log_se.exp().item()
-
-ridge_weighted = M * rrblup.uhat.detach().flatten()  # row sums = rrblup_prediction
+a_hat = torch.linalg.pinv(M) @ gblup_prediction
+ridge_weighted = M * a_hat  # row sums ≈ gblup_prediction
 save_cloud(*pca(ridge_weighted), "ridge_weighted")

@@ -2,18 +2,22 @@
 title: "Deep kernel"
 ---
 
+Let us consider a genomic prediction model, *i.e.* a model that aims at predicting phenotypes based on genomic markers such as single nucleotide polymorphisms (SNPs).
+The genetic linear mixed model (GBLUP or ridge regression) [@meuwissen_prediction_2001] compares individuals through the similarity of their genotypes.
+On the other hand, deep kernel learning [@wilson_deep_2016] consists in building a novel representation of the individuals, from which their similarity can be expressed.
+As it is learnt, this similarity draws both from the features (the genotypes) and the labels (the phenotype).
 
-The mixed model compares individuals through their relatedness: either directly read from the genetic similarity (GBLUP, RR-BLUP), or learnt from neural network embeddings (deep kernel).
-This page puts these representations side by side and builds the deep kernel intuition step by step: from the genomic kinship and the ridge regression, through the neural network alone, to [m2n2]{.m2n2}.
+This page puts these representations side by side and builds the deep kernel intuition step by step: from the genomic kinship and the ridge regression, through the neural network alone, to a bit more complex [m2n2]{.m2n2} model.
 
 ## Materials and methods
 
 ### Data
 
 The following representations are computed from the *Arabidopsis thaliana* 1001 Genomes data [@alonso-blanco_1135_2016], packaged by [meiosim](https://github.com/ai-for-genome-interpretation-lab/meiosim).
-The features $z$ are 10,000 SNPs randomly sampled among those of the RegMap panel [@horton_genome-wide_2012].
+The features $z$ are the SNPs from the RegMap panel [@horton_genome-wide_2012].
 The accessions were collected in different countries, the country of origin of each accession defines its group, and its color in the figures.
 The phenotype $y$ is the days to flowering (DTF1) expressed in a common garden, from the easyGWAS project [@grimm_easygwas_2017].
+The individuals that are very similar one with each other ($\geq 90\%$ identical markers) are discarded as to keep a single individual per similarity lot.
 
 ### Model
 
@@ -37,7 +41,15 @@ Getting rid of the later aims at improving the identification of the former.
 
 ### Genomic kinship
 
-The genomic kinship is classically computed as:
+:::: {style="float: right; width: 300px; margin-left: 1.5em;"}
+::: {#fig-kinship}
+<img src="img/kinship.png" width="250">
+
+Genomic kinship $K$, accessions sorted by country.
+:::
+::::
+
+The genomic kinship used in a GBLUP genomic prediction model is classically computed as:
 
 $$
 K = \frac{W W^\top}{\sum_j 2p_j(1-p_j)},
@@ -46,13 +58,7 @@ $$
 with $W$ the centered markers and $p_j$ the allele frequencies [@vanraden_efficient_2008].
 It represents the genetic relatedness between individuals.
 
-::: {#fig-kinship}
-<p align="center"><img src="img/kinship.png" width="500"></p>
-
-Genomic kinship $K$, accessions sorted by country.
-:::
-
-This structure can also be observed by a principal component analysis of the SNP matrix.
+This structure can also be observed by a principal component analysis of the SNP matrix $W$:
 
 ::: {#fig-kinship-pca}
 <div class="cloud3d" data-src="widgets/kinship.json"></div>
@@ -60,22 +66,23 @@ This structure can also be observed by a principal component analysis of the SNP
 First three principal components of the genomic kinship $K$, accessions colored by country.
 :::
 
-### Ridge regression
+### GBLUP genomic prediction
 
-The ridge regression on the markers, $y = \mathbf{1}\mu + Wa + r$ with $W$ the centered allele incidence and $a \sim N(0, \sigma^2_a I)$, is equivalent to the GBLUP on $K$.
-The weighted alleles $W \odot \hat a$ (with $\odot$ the Hadamard product) decompose the prediction: their row sum is the predicted breeding value.
+The GBLUP model, $y = \mathbf{1}\mu + I_n a + r$ with $a \sim N(0, \sigma^2_a K)$, is equivalent to a ridge regression on the markers, $y = \mathbf{1}\mu + Wu + r$ with $W$ the centered allele incidence and $u \sim N(0, \sigma^2_u I_p)$.
+From the GBLUP model, the breeding values $\hat a$ can be back-solved to marker effects $\hat u$ [@gualdron_duarte_rapid_2014], and compute $W \odot \hat u$, with $\odot$ the Hadamard product.
+The weighted alleles $W \odot \hat u$ decomposes the prediction: their row sum is the predicted breeding value $\hat a$.
 
 ::: {#fig-ridge}
 <div class="cloud3d" data-src="widgets/ridge_weighted.json"></div>
 
-Principal components of the weighted alleles $W \odot \hat a$ of the ridge regression.
+Principal components of the weighted alleles $W \odot \hat ua$ of the ridge regression.
 :::
 
 Their principal components remain close to those of the kinship: the effects associated with the markers are estimated as infinitesimal, all small and of similar magnitude, so that they reweight the marker space almost uniformly, and the contrasts between individuals emerge from their sum.
 
 ## Neural network
 
-A network trained alone predicts $\hat y = e^\top w + b$, with $e$ the embeddings of its last layer.
+A network trained alone predicts $\hat y = e^\top \omega + b$, with $e$ the embeddings of its last layer, $\omega$ the weights of the output layer, and $b$ the bias of the output layer.
 
 ::: {#fig-nn-embedding}
 <div class="cloud3d" data-src="widgets/nn_embedding.json"></div>
@@ -83,11 +90,11 @@ A network trained alone predicts $\hat y = e^\top w + b$, with $e$ the embedding
 Principal components of the embeddings $e$ of the network trained alone.
 :::
 
-Entirely built for the prediction, their space collapses to a single dimension, parallel to $\hat y$.
+Entirely built for the prediction, their space collapses to a single dimension, parallel to $\hat y$. The weighted embedding $e \odot \omega$ show the same pattern.
 
 ## Mixed model with a neural network
 
-[m2n2]{.m2n2} is a (potentially) deep kernel [@wilson_deep_2016]: the network builds an internal representation $Z_G$, trained on $y$ through the REML, but intermediate.
+[m2n2]{.m2n2} is a (potentially) deep kernel: the network builds an internal representation $Z_G$, trained on $y$ through the REML, but intermediate.
 The mixed model reads it as a covariance, $\sigma^2_G Z_G Z_G^\top$, and sorts the general from the specific.
 
 ### Embeddings
@@ -97,6 +104,14 @@ The mixed model reads it as a covariance, $\sigma^2_G Z_G Z_G^\top$, and sorts t
 
 Principal components of the [m2n2]{.m2n2} embeddings $Z_G$.
 :::
+
+:::: {style="float: right; width: 300px; margin-left: 1.5em;"}
+::: {#fig-kinship}
+<img src="img/m2n2_kinship.png" width="250">
+
+Embedding kinship $K_Z$, accessions sorted by country.
+:::
+::::
 
 Though the 3D view cannot display it fully, the spherical normalization shows, and structures the embedding space.
 
@@ -108,15 +123,9 @@ $$
 
 It is a proximity not in the genome, but in the learnt embeddings.
 
-::: {#fig-m2n2-kinship}
-<p align="center"><img src="img/m2n2_kinship.png" width="500"></p>
-
-Embedding kinship $K_Z$, accessions sorted by country.
-:::
-
 ### General weighted embeddings
 
-$Z_G \odot \hat u_G$, whose row sums are the general part of the predicted value.
+$Z_G \odot \hat u_G$, whose row sums are the general part of the predicted value:
 
 ::: {#fig-m2n2-general}
 <div class="cloud3d" data-src="widgets/m2n2_general.json"></div>
