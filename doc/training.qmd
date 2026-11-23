@@ -2,8 +2,12 @@
 title: "Training models"
 ---
 
-[m2n2]{.m2n2} trains the networks, the fixed effects $\beta$ and the variances jointly, by minibatch gradient descent on the REML loss.
-The networks are then frozen, and the mixed model is polished by [pyreml]{.pyreml}.
+[m2n2]{.m2n2} whole training pipeline is:
+
+1. [Initialization](#initialization) of $\beta$ and all non-`RandomNN` variances.
+2. [minibatches](#minibatches) gradient descent on the [loss](#loss-function) of the network parameters, $\beta$ and all variances.
+3. [Validation](#validation-and-early-stopping) at each epoch, early stopping and restoration of the best state.
+4. [Polish](#polish): REML and HMME with the networks frozen.
 
 ## The fit method
 
@@ -27,13 +31,6 @@ model.fit(
 | `verbose`    | Prints the loss and the score at each epoch.                                                   |
 | `full_REML`  | Runs the [pyreml]{.pyreml} [initialization](#initialization) and the REML of the [polish](#polish). Defaults to `True`; `False` skips both, for datasets too large for them. |
 
-The pipeline:
-
-0. [Initialization](#initialization) of $\beta$ and the variances, OLS only with `full_REML = False`.
-1. REML descent of the network parameters, $\beta$ and the variances, on [minibatches](#minibatches) (see [Loss function](#loss-function)).
-2. [Validation](#validation-and-early-stopping) at each epoch, early stopping and restoration of the best state.
-3. [Polish](#polish): REML and HMME with the networks frozen, HMME only with `full_REML = False`.
-
 ## Initialization
 
 With `full_REML = True`, the model is first fitted by [pyreml]{.pyreml} without the `RandomNN` terms, on the labelled rows: it initializes $\beta$, and the variances of the `Random` terms and of the residual.
@@ -51,8 +48,12 @@ V = \sum_j Z_j G_j Z_j^\top + R,
 $$
 
 with one term $j$ per random effect, and $R$ the covariance of the residual.
-For a `RandomNN` term, $Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)$, with $\nu$ the network of its `Embedding` and $q_j$ the number of groups, and $G_j = \sigma^2_{u_j} I$; with several responses, $G_j = S_j \otimes I_{q_j d}$ (see [Several responses](build.qmd#several-responses)).
-For a [pyreml]{.pyreml} `Random` term, $Z_j$ and $G_j$ follow its specification.
+
+- For a `RandomNN` term, $Z_j = \bigoplus_{k=1}^{q_j} \nu(z_{(k)}, \theta)$, with $\nu$ the network of its `Embedding` and $q_j$ the number of groups, and $G_j = \sigma^2_{u_j} I$; with several responses, $G_j = S_j \otimes I_{q_j d}$ (see [Several responses](build.qmd#several-responses)).
+
+- For a [pyreml]{.pyreml} `Random` term, $Z_j$ and $G_j$ follow its specification.
+
+- The [pyreml]{.pyreml} `Residual` term provides the structure for $R$.
 
 The network parameters $\theta$ only enter $V$: like the variances, they are variance parameters, estimated jointly with $\beta$ by restricted maximum of likelihood (REML):
 
@@ -67,7 +68,7 @@ $$
 
 The random effects $u_j$ do not enter the loss: they are predicted afterwards by solving Henderson's mixed model equations (HMME).
 
-### Minibatches
+## Minibatches
 
 At each epoch, the labelled training individuals are shuffled and split into minibatches of `batch_size` individuals, the incomplete last batch dropped.
 An individual enters a minibatch with all its observed responses, which the residual may correlate.
@@ -131,9 +132,7 @@ With `full_REML = False`, the REML is skipped: HMME runs on the variances at the
 
 The `opti_REML` accessors are not set with `full_REML = False`.
 
-### Training curves
-
-`model.plot()` plots them, here on a small example:
+`model.plot()` plots the training curves, here on a small example:
 
 <p align="center"><img src="img/m2n2_training.png" width="700"></p>
 
