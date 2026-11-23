@@ -65,7 +65,7 @@ Their principal components remain close to those of the kinship: the effects ass
 
 ## Neural network
 
-A network trained alone predicts $\hat y = e^\top \omega + b$, with $e$ the embeddings of its last layer, $\omega$ the weights of the output layer, and $b$ the bias of the output layer.
+A network trained alone predicts $\hat y = e^\top \omega + b$, with $e$ the embeddings of its last layer, $\omega$ the weights of the output layer, and $b$ the bias of the output layer:
 
 ::: {#fig-nn-embedding}
 <div class="cloud3d" data-src="widgets/nn_embedding.json"></div>
@@ -95,6 +95,8 @@ Getting rid of the later aims at improving the identification of the former.
 
 ### Embeddings
 
+Considering the raw embeddings $Z_G$ from the [m2n2]{.m2n2} model:
+
 ::: {#fig-m2n2-embedding}
 <div class="cloud3d" data-src="widgets/m2n2_embedding.json"></div>
 
@@ -117,7 +119,7 @@ $$
 K_Z = \frac{Z_c Z_c^\top}{\sum_j \mathrm{var}(z_j)}.
 $$
 
-It is a proximity not in the genome, but in the learnt embeddings.
+It is a proximity not only in the genome, but in the learnt embeddings.
 
 ### General weighted embeddings
 
@@ -129,11 +131,11 @@ $Z_G \odot \hat u_G$, whose row sums are the general part of the predicted value
 Principal components of the general weighted embeddings $Z_G \odot \hat u_G$.
 :::
 
-Just like the infinitesimal effects of the ridge regression barely alter the marker space, the general embedding effects are reminescent of the embedding space: both views are relatively close.
+Just like the infinitesimal effects of the ridge regression barely alter the marker space, the general embedding effects are reminescent of the embedding space: both views are close.
 
 ### Specific weighted embeddings
 
-$Z_G \odot \hat u_{S,k(i)}$, with $k(i)$ the group of individual $i$, whose row sums are the specific part of the predicted genetic value.
+$Z_G \odot \hat u_{S,k(i)}$, with $k(i)$ the group of individual $i$, whose row sums are the specific part of the predicted genetic value:
 
 ::: {#fig-m2n2-specific}
 <div class="cloud3d" data-src="widgets/m2n2_specific.json"></div>

@@ -68,7 +68,7 @@ Embedding(
 Its name in `embedding` is the handle by which the random effects refer to it.
 Several random effects can share the same embedding: the network is then embedded once per minibatch, and stepped once by its optimizer.
 
-### The network
+## The network
 
 The network is user-defined, under the following contract:
 
