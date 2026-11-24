@@ -29,18 +29,14 @@ class MixedModelNN(MixedModel):
     keep their own dtype.
     """
 
-    @classmethod
-    def from_dataframe(
-        cls,
+    def __init__(
+        self,
         data: pd.DataFrame,
         response: str | list[str],
         embedding: dict[str, Embedding],
         random: list[RandomNN | Random],
         fixed: str = "1",
         residual: Residual | None = None,
-        lr_beta: float = 1e-3,
-        lr_var: float = 1e-3,
-        scheduler: Callable | None = None,
     ):
         data = data.reset_index(drop=True)
         responses = [response] if isinstance(response, str) else list(response)
@@ -88,7 +84,7 @@ class MixedModelNN(MixedModel):
             Rinv, logdet_R = self.residual.varmeth_inv()(self.w_grid)
             return Ginv, Rinv, sum(ld for _, ld in inv_logdets), logdet_R
 
-        mm = cls(
+        super().__init__(
             y = pm.y,
             X = pm.X,
             q = sum(term.k * term.c * term.L for term in random),
@@ -98,27 +94,27 @@ class MixedModelNN(MixedModel):
             device      = str(device),
         )
 
-        mm.response = responses
-        mm.fixed_names = pm.fixed_names
-        mm.w_grid = pm.w_grid
+        self.response = responses
+        self.fixed_names = pm.fixed_names
+        self.w_grid = pm.w_grid
         # each observation of y: its individual (residual level), its data row, its response
-        mm.obs_unit = pm.w_grid % residual.L
-        mm.obs_row = torch.as_tensor(np.flatnonzero(keep.to_numpy()), device=device)[mm.obs_unit]
-        mm.obs_resp = pm.w_grid // residual.L
-        mm.n_data = len(data)
-        mm.random = random
-        mm.residual = residual
-        mm.embedding = embedding
-        mm.pyreml = pm  # shares the Random terms, the residual and their variances
+        self.obs_unit = pm.w_grid % residual.L
+        self.obs_row = torch.as_tensor(np.flatnonzero(keep.to_numpy()), device=device)[self.obs_unit]
+        self.obs_resp = pm.w_grid // residual.L
+        self.n_data = len(data)
+        self.random = random
+        self.residual = residual
+        self.embedding = embedding
+        self.pyreml = pm  # shares the Random terms, the residual and their variances
         # the design of the Random terms is fixed: their dense incidence on the observations,
         # block diagonal over the responses, as in pyreml
-        mm.Z_random = {
+        self.Z_random = {
             i: torch.as_tensor(scipy.linalg.block_diag(*[term.Z[m] for m in masks]), dtype=torch.double, device=device)
             for i, term in enumerate(random) if not isinstance(term, RandomNN)
         }
-        mm.migrate(torch.double)
+        self.migrate(torch.double)
 
-        mm.optimizers = [
+        self.optimizers = [
             emb.optimizer([
                 {"params": # network weights (matrices, kernels): shrunk
                     [p for p in emb.network.parameters() if p.ndim >= 2],
@@ -131,20 +127,33 @@ class MixedModelNN(MixedModel):
             for emb in embedding.values()
         ] + [
             torch.optim.Adam([
-                {"params": [mm.beta], "lr": lr_beta},
-                {"params": mm.params, "lr": lr_var},
+                {"params": [self.beta], "lr": lr_beta},
+                {"params": self.params, "lr": lr_var},
             ])
         ]
-        mm.schedulers = [
+        self.schedulers = [
             factory(optimizer)
-            for factory, optimizer in zip([emb.scheduler for emb in embedding.values()] + [scheduler], mm.optimizers)
+            for factory, optimizer in zip([emb.scheduler for emb in embedding.values()] + [scheduler], self.optimizers)
             if factory is not None
         ]
 
-        mm.loss = []
-        mm.score = []
+        self.loss = []
+        self.score = []
 
-        return mm
+    def reset(self, embedding: str, seed: int = 42):
+        self.embedding[embedding].reset(seed=seed)
+
+    def set_optimizer(self, embedding: str, optimizer: Callable):
+        self.embedding[embedding].optimizer = optimizer
+
+    def set_scheduler(self, embedding: str, scheduler: Callable | None):
+        self.embedding[embedding].scheduler = scheduler
+
+    def get_optimizer(self, embedding: str) -> Callable:
+        return self.embedding[embedding].optimizer
+
+    def get_scheduler(self, embedding: str) -> Callable | None:
+        return self.embedding[embedding].scheduler
 
     def design(self, b: torch.Tensor | None = None) -> torch.Tensor:
         """
@@ -175,6 +184,9 @@ class MixedModelNN(MixedModel):
         patience: int | None = 50,
         verbose: bool = True,
         full_REML: bool = True,
+        lr_beta: float = 1e-3,
+        lr_var: float = 1e-3,
+        scheduler: Callable | None = None,
     ):
         """
         full_REML: initialization by pyreml and REML polish; False skips both, for datasets too large for them.

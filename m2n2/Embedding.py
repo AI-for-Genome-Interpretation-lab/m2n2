@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from typing import Callable
 
@@ -9,7 +9,10 @@ import torch.nn as nn
 @dataclass
 class Embedding:
     """
-    A network and the factory of its optimizer, called on the parameter groups of the network.
+    A network, built from the network alone. Its training settings are attributes, set after
+    construction and read by fit: optimizer, the factory of its optimizer, called on the parameter
+    groups of the network, and scheduler, the factory of its learning-rate scheduler, called on
+    that optimizer (None = constant learning rate).
 
     network() must return one embedding per row of data, in the same order: aligning the two
     is the caller's responsibility. network(rows), with rows a boolean mask over the rows of
@@ -17,5 +20,24 @@ class Embedding:
     rows alone, so that batch statistics (e.g. BatchNorm) never see the others.
     """
     network: nn.Module
-    optimizer: Callable = partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)
-    scheduler: Callable | None = None
+    optimizer: Callable = field(
+        default = partial(
+            torch.optim.AdamW,
+            lr = 1e-3,
+            weight_decay = 1e-1
+        ),
+        init = False,
+    )
+    scheduler: Callable | None = field(default=None, init=False)
+
+    def reset(self, seed: int = 42):
+        """
+        Draws new random weights, from `seed`, by reset_parameters() of every submodule that has one,
+        the network included: BatchNorm running statistics are reset too. A parameter held by a module
+        without reset_parameters() is left untouched. The global PyTorch generator is not affected.
+        """
+        with torch.random.fork_rng():
+            torch.manual_seed(seed)
+            for module in self.network.modules():
+                if hasattr(module, "reset_parameters"):
+                    module.reset_parameters()
