@@ -102,7 +102,7 @@ div.csl-indent {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-447e42e69aaa9833c0ba1b986f430b20.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-eee0d47ffbbb6b0172a98e7cc31c05ca.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-379c8eee9c6f7a34f31a2b320c1950b6.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -218,9 +218,19 @@ window.Quarto = {
    
   <ul>
   <li><a href="#the-fit-method" id="toc-the-fit-method" class="nav-link active" data-scroll-target="#the-fit-method">The fit method</a></li>
-  <li><a href="#initialization" id="toc-initialization" class="nav-link" data-scroll-target="#initialization">Initialization</a></li>
+  <li><a href="#initialization" id="toc-initialization" class="nav-link" data-scroll-target="#initialization">Initialization</a>
+  <ul class="collapse">
+  <li><a href="#neural-weights" id="toc-neural-weights" class="nav-link" data-scroll-target="#neural-weights">Neural weights</a></li>
+  <li><a href="#fixed-effects-and-variances" id="toc-fixed-effects-and-variances" class="nav-link" data-scroll-target="#fixed-effects-and-variances">Fixed effects and variances</a></li>
+  </ul></li>
   <li><a href="#loss-function" id="toc-loss-function" class="nav-link" data-scroll-target="#loss-function">Loss function</a></li>
   <li><a href="#minibatches" id="toc-minibatches" class="nav-link" data-scroll-target="#minibatches">Minibatches</a></li>
+  <li><a href="#optimizers-and-schedulers" id="toc-optimizers-and-schedulers" class="nav-link" data-scroll-target="#optimizers-and-schedulers">Optimizers and schedulers</a>
+  <ul class="collapse">
+  <li><a href="#networks" id="toc-networks" class="nav-link" data-scroll-target="#networks">Networks</a></li>
+  <li><a href="#fixed-effects-and-variances-1" id="toc-fixed-effects-and-variances-1" class="nav-link" data-scroll-target="#fixed-effects-and-variances-1">Fixed effects and variances</a></li>
+  <li><a href="#behavior" id="toc-behavior" class="nav-link" data-scroll-target="#behavior">Behavior</a></li>
+  </ul></li>
   <li><a href="#validation-and-early-stopping" id="toc-validation-and-early-stopping" class="nav-link" data-scroll-target="#validation-and-early-stopping">Validation and early stopping</a></li>
   <li><a href="#polish" id="toc-polish" class="nav-link" data-scroll-target="#polish">Polish</a></li>
   <li><a href="#monitoring" id="toc-monitoring" class="nav-link" data-scroll-target="#monitoring">Monitoring</a></li>
@@ -252,7 +262,7 @@ window.Quarto = {
 
 <p><span class="m2n2">m2n2</span> whole training pipeline is:</p>
 <ol type="1">
-<li><a href="#initialization">Initialization</a> of <span class="math inline">\(\beta\)</span> and all non-<code>RandomNN</code> variances.</li>
+<li><a href="#initialization">Initialization</a> of <span class="math inline">\(\beta\)</span> and the variances.</li>
 <li><a href="#minibatches">minibatches</a> gradient descent on the <a href="#loss-function">loss</a> of the network parameters, <span class="math inline">\(\beta\)</span> and all variances.</li>
 <li><a href="#validation-and-early-stopping">Validation</a> at each epoch, early stopping and restoration of the best state.</li>
 <li><a href="#polish">Polish</a>: REML and HMME with the networks frozen.</li>
@@ -262,11 +272,14 @@ window.Quarto = {
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>model.fit(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    n_epoch    <span class="op">=</span> <span class="dv">1000</span>,</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    batch_size <span class="op">=</span> <span class="va">None</span>,</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    validation <span class="op">=</span> <span class="fl">0.1</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    validation <span class="op">=</span> <span class="fl">0.2</span>,</span>
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    patience   <span class="op">=</span> <span class="dv">50</span>,</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    verbose    <span class="op">=</span> <span class="va">True</span>,</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    full_REML  <span class="op">=</span> <span class="va">True</span>,</span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    lr_beta    <span class="op">=</span> <span class="fl">1e-3</span>,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    lr_var     <span class="op">=</span> <span class="fl">1e-3</span>,</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>    scheduler  <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -299,12 +312,42 @@ window.Quarto = {
 <td><code>full_REML</code></td>
 <td>Runs the <span class="pyreml">pyreml</span> <a href="#initialization">initialization</a> and the REML of the <a href="#polish">polish</a>. Defaults to <code>True</code>; <code>False</code> skips both, for datasets too large for them.</td>
 </tr>
+<tr class="odd">
+<td><code>lr_beta</code></td>
+<td>Learning rate of <span class="math inline">\(\beta\)</span>. Defaults to 1e-3.</td>
+</tr>
+<tr class="even">
+<td><code>lr_var</code></td>
+<td>Learning rate of the variances. Defaults to 1e-3.</td>
+</tr>
+<tr class="odd">
+<td><code>scheduler</code></td>
+<td>Factory of the learning-rate scheduler of <span class="math inline">\(\beta\)</span> and the variances. Defaults to <code>None</code>: constant learning rates (see <a href="#optimizers-and-schedulers">Optimizers and schedulers</a>).</td>
+</tr>
 </tbody>
 </table>
 </section>
 <section id="initialization" class="level2">
 <h2 class="anchored" data-anchor-id="initialization">Initialization</h2>
-<p>With <code>full_REML = True</code>, the model is first fitted by <span class="pyreml">pyreml</span> without the <code>RandomNN</code> terms, on the labelled rows: it initializes <span class="math inline">\(\beta\)</span>, and the variances of the <code>Random</code> terms and of the residual. With <code>full_REML = False</code>, this fit is skipped: <span class="math inline">\(\beta\)</span> is initialized by ordinary least squares on the labelled rows, and the variances of the <code>Random</code> terms and of the residual at their <span class="pyreml">pyreml</span> initial values. In both cases, the variances of the <code>RandomNN</code> terms are initialized at the variance of the response; with several responses, <span class="math inline">\(S_j\)</span> is initialized at the diagonal of their variances, without covariance.</p>
+<section id="neural-weights" class="level3">
+<h3 class="anchored" data-anchor-id="neural-weights">Neural weights</h3>
+<p><span class="m2n2">m2n2</span> does not initialize the network weights. The weights can be pre-trained, or re-initialized between runs using the following methods:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>model.reset(embedding <span class="op">=</span> <span class="st">"geno"</span>, seed <span class="op">=</span> <span class="dv">42</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>model.load(embedding <span class="op">=</span> <span class="st">"geno"</span>, weights <span class="op">=</span> <span class="st">"pretrained.pt"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<ul>
+<li><code>reset</code> draws new random weights from <code>seed</code>, by the <code>reset_parameters()</code> of every submodule that has one: BatchNorm running statistics are reset too, and a parameter held by a module without <code>reset_parameters()</code> is left untouched. The global PyTorch generator is not affected.</li>
+<li><code>load</code> loads the weights in place from a file saved by <code>torch.save(network.state_dict(), "pretrained.pt")</code>. The state dict must match the network, buffers included, <em>e.g.</em> the features <span class="math inline">\(z\)</span>.</li>
+</ul>
+<p>Both act in place: the network is not to be replaced in its <code>Embedding</code>, as the <code>RandomNN</code> terms keep a reference to it.</p>
+</section>
+<section id="fixed-effects-and-variances" class="level3">
+<h3 class="anchored" data-anchor-id="fixed-effects-and-variances">Fixed effects and variances</h3>
+<ul>
+<li><p>With <code>full_REML = True</code>, the model is first fitted by <span class="pyreml">pyreml</span> without the <code>RandomNN</code> terms, on the labelled rows: it initializes <span class="math inline">\(\beta\)</span>, and the variances of the <code>Random</code> terms and of the residual.</p></li>
+<li><p>With <code>full_REML = False</code>, this fit is skipped: <span class="math inline">\(\beta\)</span> is initialized by ordinary least squares on the labelled rows, and the variances of the <code>Random</code> terms and of the residual at their <span class="pyreml">pyreml</span> initial values.</p></li>
+</ul>
+<p>In both cases, the variances of the <code>RandomNN</code> terms are initialized at the variance of the response; with several responses, <span class="math inline">\(S_j\)</span> is initialized at the diagonal of their variances, without covariance.</p>
+</section>
 </section>
 <section id="loss-function" class="level2">
 <h2 class="anchored" data-anchor-id="loss-function">Loss function</h2>
@@ -334,8 +377,105 @@ r = y - X\beta.
 <section id="minibatches" class="level2">
 <h2 class="anchored" data-anchor-id="minibatches">Minibatches</h2>
 <p>At each epoch, the labelled training individuals are shuffled and split into minibatches of <code>batch_size</code> individuals, the incomplete last batch dropped. An individual enters a minibatch with all its observed responses, which the residual may correlate. As the embeddings are computed row-wise, the covariance of a minibatch <span class="math inline">\(B\)</span> is the submatrix <span class="math inline">\(V_B\)</span> of <span class="math inline">\(V\)</span>, and <span class="math inline">\(y_B \sim N(X_B\beta, V_B)\)</span> exactly: the loss of a minibatch is the REML of the corresponding sub-model. When a level is absent from the minibatch, <span class="math inline">\(X_B\)</span> loses rank, <em>e.g.</em> an empty column, or the reference level of a qualitative effect, the intercept being then the sum of the present dummies. The REML of the sub-model is then computed on a basis of the columns of <span class="math inline">\(X_B\)</span>, selected by pivoted QR: the fixed effects it cannot estimate are left out of this minibatch. The observations are not independent: they share the <span class="math inline">\(u_j\)</span>, and <span class="math inline">\(V\)</span> is not diagonal. The minibatch losses therefore do not add up to the full REML: minibatch descent is a stochastic approximation of it, which performs well empirically <span class="citation" data-cites="simchoni_integrating_2023">(<a href="#ref-simchoni_integrating_2023" role="doc-biblioref">Simchoni &amp; Rosset, 2023</a>)</span>.</p>
-<p>The loss is computed by <span class="pyreml">pyreml</span>, on the <a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#smw">SMW</a> path when the total number of columns of <span class="math inline">\(Z = [Z_1 \mid Z_2 \mid \dots]\)</span> is below <span class="math inline">\(n_B\)</span>, on <span class="math inline">\(V_B\)</span> directly otherwise. The gradient flows by autograd through the variances, <span class="math inline">\(\beta\)</span> and the networks. Each network is stepped by the optimizer of its <code>Embedding</code>, AdamW <span class="citation" data-cites="loshchilov_decoupled_2019">(<a href="#ref-loshchilov_decoupled_2019" role="doc-biblioref">Loshchilov &amp; Hutter, 2019</a>)</span> by default, and <span class="math inline">\(\beta\)</span> and the variances by Adam <span class="citation" data-cites="kingma_adam_2017">(<a href="#ref-kingma_adam_2017" role="doc-biblioref">Kingma &amp; Ba, 2017</a>)</span>, at the learning rates <code>lr_beta</code> and <code>lr_var</code>. A network shared by several terms is embedded once per minibatch: its gradient gathers the contributions of all of them, and its optimizer steps once.</p>
+<p>The loss is computed by <span class="pyreml">pyreml</span>, on the <a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#smw">SMW</a> path when the total number of columns of <span class="math inline">\(Z = [Z_1 \mid Z_2 \mid \dots]\)</span> is below <span class="math inline">\(n_B\)</span>, on <span class="math inline">\(V_B\)</span> directly otherwise. The gradient flows by autograd through the variances, <span class="math inline">\(\beta\)</span> and the networks. Each network is stepped by the optimizer of its <code>Embedding</code>, AdamW <span class="citation" data-cites="loshchilov_decoupled_2019">(<a href="#ref-loshchilov_decoupled_2019" role="doc-biblioref">Loshchilov &amp; Hutter, 2019</a>)</span> by default, and <span class="math inline">\(\beta\)</span> and the variances by Adam <span class="citation" data-cites="kingma_adam_2017">(<a href="#ref-kingma_adam_2017" role="doc-biblioref">Kingma &amp; Ba, 2017</a>)</span>, at the learning rates <code>lr_beta</code> and <code>lr_var</code> (see <a href="#optimizers-and-schedulers">Optimizers and schedulers</a>). A network shared by several terms is embedded once per minibatch: its gradient gathers the contributions of all of them, and its optimizer steps once.</p>
 <p><code>model.loss</code> records the mean minibatch loss of each epoch. It scales with <span class="math inline">\(n_B\)</span>: curves are comparable at fixed <code>batch_size</code> only.</p>
+</section>
+<section id="optimizers-and-schedulers" class="level2">
+<h2 class="anchored" data-anchor-id="optimizers-and-schedulers">Optimizers and schedulers</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 32%">
+<col style="width: 24%">
+<col style="width: 10%">
+<col style="width: 10%">
+<col style="width: 11%">
+<col style="width: 10%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Group</th>
+<th>Parameters</th>
+<th>Optimizer</th>
+<th>Weight decay</th>
+<th>Learning rate</th>
+<th>Scheduler</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Network weights</td>
+<td>Tensors of dimension <span class="math inline">\(\geq 2\)</span></td>
+<td><code>optimizer</code> of the <code>Embedding</code></td>
+<td><code>optimizer</code></td>
+<td><code>optimizer</code></td>
+<td><code>scheduler</code> of the <code>Embedding</code></td>
+</tr>
+<tr class="even">
+<td>Network biases, normalization parameters</td>
+<td>Vectors</td>
+<td><code>optimizer</code> of the <code>Embedding</code></td>
+<td>0</td>
+<td><code>optimizer</code></td>
+<td><code>scheduler</code> of the <code>Embedding</code></td>
+</tr>
+<tr class="odd">
+<td>Fixed effects</td>
+<td><span class="math inline">\(\beta\)</span></td>
+<td>Adam</td>
+<td>0</td>
+<td><code>lr_beta</code></td>
+<td><code>scheduler</code> of <code>.fit()</code></td>
+</tr>
+<tr class="even">
+<td>Variances</td>
+<td><span class="math inline">\(\log \sigma^2\)</span>, or the parameters of <span class="math inline">\(S_j\)</span></td>
+<td>Adam</td>
+<td>0</td>
+<td><code>lr_var</code></td>
+<td><code>scheduler</code> of <code>.fit()</code></td>
+</tr>
+</tbody>
+</table>
+<section id="networks" class="level3">
+<h3 class="anchored" data-anchor-id="networks">Networks</h3>
+<ul>
+<li><strong>Optimizer</strong>, required: a <code>torch.optim</code> optimizer, LBFGS excepted, as a factory called on the two parameter groups of the network. Defaults to <code>partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)</code>.</li>
+<li><strong>Scheduler</strong>, optional: a <code>torch.optim.lr_scheduler</code>, as a factory called on the optimizer. Defaults to <code>None</code>: constant learning rate.</li>
+<li><strong>Setting</strong>: at the construction of the <a href="./build.html#embeddings"><code>Embedding</code></a>, or afterwards by its name, with <code>model.set_optimizer()</code> and <code>model.set_scheduler()</code>; <code>model.get_optimizer()</code> and <code>model.get_scheduler()</code> return them.</li>
+</ul>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>model.set_optimizer(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">"geno"</span>,</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    partial(</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        torch.optim.AdamW,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        lr <span class="op">=</span> <span class="fl">1e-4</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        weight_decay <span class="op">=</span> <span class="fl">1e-1</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>model.set_scheduler(</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">"geno"</span>,</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    partial(</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        torch.optim.lr_scheduler.CosineAnnealingLR,</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        T_max <span class="op">=</span> <span class="dv">1000</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="fixed-effects-and-variances-1" class="level3">
+<h3 class="anchored" data-anchor-id="fixed-effects-and-variances-1">Fixed effects and variances</h3>
+<ul>
+<li><strong>Optimizer</strong>: Adam, at the learning rates <code>lr_beta</code> and <code>lr_var</code> of <code>.fit()</code>. The variances are log-parameterized.</li>
+<li><strong>Scheduler</strong>, optional: the <code>scheduler</code> argument of <code>.fit()</code>. It scales both groups together, from <code>lr_beta</code> and <code>lr_var</code>.</li>
+</ul>
+</section>
+<section id="behavior" class="level3">
+<h3 class="anchored" data-anchor-id="behavior">Behavior</h3>
+<ul>
+<li><strong>Creation</strong>: optimizers and schedulers are created anew at each <code>.fit()</code>, as <span class="math inline">\(\beta\)</span> and the variances are <a href="#initialization">initialized</a> anew. The networks keep their weights.</li>
+<li><strong>Step</strong>: each scheduler steps once per epoch, after the last minibatch. Scheduler lengths, <em>e.g.</em> <code>T_max</code> or <code>step_size</code>, count epochs.</li>
+<li><strong><code>ReduceLROnPlateau</code></strong>: steps on the validation score of the epoch, or on its mean minibatch loss without <code>validation</code>.</li>
+<li><strong>Polish</strong>: the schedulers do not act on it.</li>
+</ul>
+</section>
 </section>
 <section id="validation-and-early-stopping" class="level2">
 <h2 class="anchored" data-anchor-id="validation-and-early-stopping">Validation and early stopping</h2>
@@ -349,7 +489,7 @@ V_t = Z_t G Z_t^\top + R_t,
 <p>with <span class="math inline">\(Z = [Z_1 \mid Z_2 \mid \dots]\)</span> and <span class="math inline">\(G\)</span> the block diagonal of the <span class="math inline">\(G_j\)</span>. Their mean squared error is recorded in <code>model.score</code>. With several responses, the score is the mean over the responses of <span class="math inline">\(\text{MSE}_r / \text{var}(y_r)\)</span>, so that no response dominates by its scale.</p>
 <p>The best state (weights of every network, <span class="math inline">\(\beta\)</span>, variances) is kept. Training stops after <code>patience</code> epochs without improvement, and the best state is restored. Without <code>validation</code>, training runs <code>n_epoch</code> epochs and the last state is kept.</p>
 <p>Each validation solves a dense system in <span class="math inline">\(V_t\)</span>, of size <span class="math inline">\(n_t \times n_t\)</span>.</p>
-<p>The held-out rows, the minibatches, the network initializations and the dropout masks all draw from the PyTorch generator: <code>torch.manual_seed</code> makes the training reproducible.</p>
+<p>The held-out rows, the minibatches and the dropout masks all draw from the PyTorch generator: <code>torch.manual_seed</code> makes the training reproducible, the network weights being set beforehand (see <a href="#neural-weights">Neural weights</a>).</p>
 </section>
 <section id="polish" class="level2">
 <h2 class="anchored" data-anchor-id="polish">Polish</h2>
@@ -358,7 +498,8 @@ V_t = Z_t G Z_t^\top + R_t,
 <li><a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#reml">REML</a> re-estimates <span class="math inline">\(\beta\)</span> and the variances, by L-BFGS with its adaptive convergence criterion;</li>
 <li><a href="https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#hmme">HMME</a> gives the BLUE of <span class="math inline">\(\beta\)</span>, the BLUP of every <span class="math inline">\(u_j\)</span>, and their error variances.</li>
 </ul>
-<p>Both run in double, as the whole mixed model. With <code>full_REML = False</code>, the REML is skipped: HMME runs on the variances at the end of training (restored state with <code>validation</code>).</p>
+<p>Both run in double, as the whole mixed model.</p>
+<p>With <code>full_REML = False</code>, the REML is skipped: HMME runs on the variances at the end of training.</p>
 </section>
 <section id="monitoring" class="level2">
 <h2 class="anchored" data-anchor-id="monitoring">Monitoring</h2>
@@ -376,11 +517,11 @@ V_t = Z_t G Z_t^\top + R_t,
 <tbody>
 <tr class="odd">
 <td><code>model.loss</code></td>
-<td>Mean minibatch REML loss at each epoch.</td>
+<td>Mean minibatch REML loss at each epoch of the last <code>.fit()</code>.</td>
 </tr>
 <tr class="even">
 <td><code>model.score</code></td>
-<td>Validation MSE at each epoch, standardized with several responses, empty without <code>validation</code>.</td>
+<td>Validation MSE at each epoch of the last <code>.fit()</code>, standardized with several responses, empty without <code>validation</code>.</td>
 </tr>
 <tr class="odd">
 <td><code>model.opti_REML.loss</code></td>

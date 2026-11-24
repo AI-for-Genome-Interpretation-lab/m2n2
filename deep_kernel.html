@@ -67,7 +67,7 @@ div.csl-indent {
 <link href="site_libs/quarto-html/quarto-syntax-highlighting-dark-447e42e69aaa9833c0ba1b986f430b20.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-eee0d47ffbbb6b0172a98e7cc31c05ca.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
+<link href="site_libs/bootstrap/bootstrap-379c8eee9c6f7a34f31a2b320c1950b6.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -234,7 +234,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="linear-genomic-model">Linear genomic model</h2>
 <section id="genomic-kinship" class="level3">
 <h3 class="anchored" data-anchor-id="genomic-kinship">Genomic kinship</h3>
-<div style="float: right; width: 300px; margin-left: 1.5em;">
+<div class="float-fig">
 <div id="fig-kinship" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-kinship-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
@@ -267,7 +267,7 @@ Figure&nbsp;2: First three principal components of the genomic kinship <span cla
 </section>
 <section id="gblup-genomic-prediction" class="level3">
 <h3 class="anchored" data-anchor-id="gblup-genomic-prediction">GBLUP genomic prediction</h3>
-<p>The GBLUP model, <span class="math inline">\(y = \mathbf{1}\mu + I_n a + r\)</span> with <span class="math inline">\(a \sim N(0, \sigma^2_a K)\)</span>, is equivalent to a ridge regression on the markers, <span class="math inline">\(y = \mathbf{1}\mu + Wu + r\)</span> with <span class="math inline">\(W\)</span> the centered allele incidence and <span class="math inline">\(u \sim N(0, \sigma^2_u I_p)\)</span>. From the GBLUP model, the breeding values <span class="math inline">\(\hat a\)</span> can be back-solved to marker effects <span class="math inline">\(\hat u\)</span> <span class="citation" data-cites="gualdron_duarte_rapid_2014">(<a href="#ref-gualdron_duarte_rapid_2014" role="doc-biblioref">Gualdrón Duarte et al., 2014</a>)</span>.</p>
+<p>The GBLUP model, <span class="math inline">\(y = \mathbf{1}\mu + I_n a + r\)</span> with <span class="math inline">\(a \sim N(0, \sigma^2_a K)\)</span>, is equivalent to a ridge regression on the markers, <span class="math inline">\(y = \mathbf{1}\mu + Wu + r\)</span> with <span class="math inline">\(W\)</span> the centered allele incidence and <span class="math inline">\(u \sim N(0, \sigma^2_u I_p)\)</span>. In these models, the population mean effect is not included: as it is genetically determined, it has to be captured by <span class="math inline">\(\hat a\)</span>. From the GBLUP model, the breeding values <span class="math inline">\(\hat a\)</span> can be back-solved to marker effects <span class="math inline">\(\hat u\)</span> <span class="citation" data-cites="gualdron_duarte_rapid_2014">(<a href="#ref-gualdron_duarte_rapid_2014" role="doc-biblioref">Gualdrón Duarte et al., 2014</a>)</span>.</p>
 <p>From here, we can compute <span class="math inline">\(W \odot \hat u\)</span>, with <span class="math inline">\(\odot\)</span> the Hadamard product. The weighted alleles <span class="math inline">\(W \odot \hat u\)</span> decomposes the prediction: their row sum is the predicted breeding value <span class="math inline">\(\hat a\)</span>:</p>
 <div id="fig-ridge" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
@@ -329,7 +329,7 @@ Figure&nbsp;5: Principal components of the <span class="m2n2">m2n2</span> embedd
 </figcaption>
 </figure>
 </div>
-<div style="float: right; width: 300px; margin-left: 1.5em;">
+<div class="float-fig">
 <div id="fig-kinship" class="quarto-float quarto-figure quarto-figure-center anchored">
 <figure class="quarto-float quarto-float-fig figure">
 <div aria-describedby="fig-kinship-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
