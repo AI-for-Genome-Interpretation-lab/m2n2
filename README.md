@@ -22,6 +22,12 @@ Install **m2n2** with `pip`:
 pip install m2n2
 ```
 
+## Illustrative example
+
+In this example, the phenology (day to flowering) of several populations of *Arabidopsis thaliana* is predicted from genomic markers. The same embedding space is used both for the shared genotype-to-phenotype mapping across populations (left) and for the distinction of a complex, difficult to interpret, epistatic interference between each group and the general mapping (right). Getting rid of the later aims at improving the identification of the former. More information in the [documentation](https://ai-for-genome-interpretation-lab.github.io/m2n2/deep_kernel.html).
+
+<img width="1022" height="489" alt="embedding space" src="https://github.com/user-attachments/assets/5c16fb08-3b18-425e-9aa4-c208090ef65d" />
+
 ## The model
 
 **m2n2** fits a linear mixed model built upon the `PyTorch` neural network $\nu$ of parameters $\theta$:
@@ -83,19 +89,12 @@ class Network(nn.Module):
 torch.manual_seed(42)
 network = Network(z) # /!\ z and data must be perfectly aligned
 
-model = MixedModelNN.from_dataframe(
+model = MixedModelNN(
     data,
     response = "DTF1",
     fixed = "1 + country",
     embedding = {
-        "geno": Embedding(
-            network,
-            optimizer = partial(
-                torch.optim.AdamW,
-                lr=1e-3,
-                weight_decay=1e-1
-            )
-        )
+        "geno": Embedding(network)
     },
     random = [
         RandomNN(
@@ -103,27 +102,42 @@ model = MixedModelNN.from_dataframe(
         ),
         RandomNN(
             embedding = "geno",
-            group = "country",
+            group     = "country",
         )
     ],
-    residual = Residual(),
-    lr_beta=1e-2,
-    lr_var=1e-2,
+    residual = Residual(), # default
+)
+
+model.set_optimizer(
+    "geno",
+    partial( # default
+        torch.optim.AdamW,
+        lr = 1e-3,
+        weight_decay = 1e-1
+    )
+)
+
+model.set_scheduler(
+    "geno",
+    None, # default
 )
 
 model.fit(
-    n_epoch=1000,
-    batch_size=256,
-    validation=0.2,
-    patience=50,
-    verbose=False,
+    n_epoch    = 1000,
+    batch_size = 256,
+    validation = 0.2,
+    patience   = 50,
+    lr_beta    = 1e-2,
+    lr_var     = 1e-2,
 )
-
 
 model.plot()
 model.random[0].plot(group_by = "country")
 model.random[1].plot()
 model.varcomp()
+
+# reset the nn weights
+model.reset("geno", seed = 42)
 ```
 
 ## Documentation

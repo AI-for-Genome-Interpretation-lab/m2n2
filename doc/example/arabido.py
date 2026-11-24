@@ -93,7 +93,7 @@ class Network(nn.Module):
 torch.manual_seed(42)
 network = Network(z) # /!\ z and data must be perfectly aligned
 
-model = MixedModelNN.from_dataframe(
+model = MixedModelNN(
     data,
     response = "DTF1",
     fixed = "1 + country",
@@ -117,8 +117,6 @@ model = MixedModelNN.from_dataframe(
         )
     ],
     residual = Residual(),
-    lr_beta=1e-2,
-    lr_var=1e-2,
 )
 
 model.fit(
@@ -127,6 +125,8 @@ model.fit(
     validation=0.2,
     patience=50,
     verbose=False,
+    lr_beta=1e-2,
+    lr_var=1e-2,
 )
 
 

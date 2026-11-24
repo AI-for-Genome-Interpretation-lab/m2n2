@@ -8,6 +8,17 @@ img {
   height: auto;
 }
 
+// figure floated right of the text, centered above it on small screens
+.float-fig {
+  float: right;
+  width: 300px;
+  margin-left: 1.5em;
+  @include media-breakpoint-down(md) {
+    float: none;
+    margin: 1rem auto;
+  }
+}
+
 .pyreml, .m2n2 {
   font-family: $font-family-monospace;
   font-weight: 600;
@@ -25,6 +36,15 @@ img {
   position: relative;
   margin: 1rem auto 2rem;
   max-width: 760px;
+}
+
+/* two clouds side by side, stacked when the screen is too narrow */
+.cloud-pair {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 800px;
+  margin: 1rem auto 2rem;
+  .cloud3d { flex: 1 1 360px; margin: 0; }
 }
 
 .c3-svg {

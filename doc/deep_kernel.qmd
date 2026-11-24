@@ -22,7 +22,7 @@ The individuals that are very similar one with each other ($\geq 90\%$ identical
 
 ### Genomic kinship
 
-:::: {style="float: right; width: 300px; margin-left: 1.5em;"}
+:::: {.float-fig}
 ::: {#fig-kinship}
 <img src="img/kinship.png" width="250">
 
@@ -50,6 +50,7 @@ First three principal components of the genomic kinship $K$, accessions colored 
 ### GBLUP genomic prediction
 
 The GBLUP model, $y = \mathbf{1}\mu + I_n a + r$ with $a \sim N(0, \sigma^2_a K)$, is equivalent to a ridge regression on the markers, $y = \mathbf{1}\mu + Wu + r$ with $W$ the centered allele incidence and $u \sim N(0, \sigma^2_u I_p)$.
+In these models, the population mean effect is not included: as it is genetically determined, it has to be captured by $\hat a$.
 From the GBLUP model, the breeding values $\hat a$ can be back-solved to marker effects $\hat u$ [@gualdron_duarte_rapid_2014].
 
 From here, we can compute $W \odot \hat u$, with $\odot$ the Hadamard product.
@@ -103,7 +104,7 @@ Considering the raw embeddings $Z_G$ from the [m2n2]{.m2n2} model:
 Principal components of the [m2n2]{.m2n2} embeddings $Z_G$.
 :::
 
-:::: {style="float: right; width: 300px; margin-left: 1.5em;"}
+:::: {.float-fig}
 ::: {#fig-kinship}
 <img src="img/m2n2_kinship.png" width="250">
 
