@@ -4,7 +4,7 @@ title: "Training models"
 
 [m2n2]{.m2n2} whole training pipeline is:
 
-1. [Initialization](#initialization) of $\beta$ and all non-`RandomNN` variances.
+1. [Initialization](#initialization) of $\beta$ and the variances.
 2. [minibatches](#minibatches) gradient descent on the [loss](#loss-function) of the network parameters, $\beta$ and all variances.
 3. [Validation](#validation-and-early-stopping) at each epoch, early stopping and restoration of the best state.
 4. [Polish](#polish): REML and HMME with the networks frozen.
@@ -15,10 +15,13 @@ title: "Training models"
 model.fit(
     n_epoch    = 1000,
     batch_size = None,
-    validation = 0.1,
+    validation = 0.2,
     patience   = 50,
     verbose    = True,
     full_REML  = True,
+    lr_beta    = 1e-3,
+    lr_var     = 1e-3,
+    scheduler  = None,
 )
 ```
 
@@ -30,11 +33,32 @@ model.fit(
 | `patience`   | Epochs without improvement of the validation score before stopping. Defaults to 50, `None` never stops. |
 | `verbose`    | Prints the loss and the score at each epoch.                                                   |
 | `full_REML`  | Runs the [pyreml]{.pyreml} [initialization](#initialization) and the REML of the [polish](#polish). Defaults to `True`; `False` skips both, for datasets too large for them. |
+| `lr_beta`    | Learning rate of $\beta$. Defaults to 1e-3.                                                    |
+| `lr_var`     | Learning rate of the variances. Defaults to 1e-3.                                              |
+| `scheduler`  | Factory of the learning-rate scheduler of $\beta$ and the variances. Defaults to `None`: constant learning rates (see [Optimizers and schedulers](#optimizers-and-schedulers)). |
 
 ## Initialization
 
-With `full_REML = True`, the model is first fitted by [pyreml]{.pyreml} without the `RandomNN` terms, on the labelled rows: it initializes $\beta$, and the variances of the `Random` terms and of the residual.
-With `full_REML = False`, this fit is skipped: $\beta$ is initialized by ordinary least squares on the labelled rows, and the variances of the `Random` terms and of the residual at their [pyreml]{.pyreml} initial values.
+### Neural weights
+
+[m2n2]{.m2n2} does not initialize the network weights. The weights can be pre-trained, or re-initialized between runs using the following methods:
+
+```python
+model.reset(embedding = "geno", seed = 42)
+model.load(embedding = "geno", weights = "pretrained.pt")
+```
+
+- `reset` draws new random weights from `seed`, by the `reset_parameters()` of every submodule that has one: BatchNorm running statistics are reset too, and a parameter held by a module without `reset_parameters()` is left untouched. The global PyTorch generator is not affected.
+- `load` loads the weights in place from a file saved by `torch.save(network.state_dict(), "pretrained.pt")`. The state dict must match the network, buffers included, *e.g.* the features $z$.
+
+Both act in place: the network is not to be replaced in its `Embedding`, as the `RandomNN` terms keep a reference to it.
+
+### Fixed effects and variances
+
+- With `full_REML = True`, the model is first fitted by [pyreml]{.pyreml} without the `RandomNN` terms, on the labelled rows: it initializes $\beta$, and the variances of the `Random` terms and of the residual.
+
+- With `full_REML = False`, this fit is skipped: $\beta$ is initialized by ordinary least squares on the labelled rows, and the variances of the `Random` terms and of the residual at their [pyreml]{.pyreml} initial values.
+
 In both cases, the variances of the `RandomNN` terms are initialized at the variance of the response; with several responses, $S_j$ is initialized at the diagonal of their variances, without covariance.
 
 ## Loss function
@@ -80,10 +104,56 @@ The minibatch losses therefore do not add up to the full REML: minibatch descent
 
 The loss is computed by [pyreml]{.pyreml}, on the [SMW](https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#smw) path when the total number of columns of $Z = [Z_1 \mid Z_2 \mid \dots]$ is below $n_B$, on $V_B$ directly otherwise.
 The gradient flows by autograd through the variances, $\beta$ and the networks.
-Each network is stepped by the optimizer of its `Embedding`, AdamW [@loshchilov_decoupled_2019] by default, and $\beta$ and the variances by Adam [@kingma_adam_2017], at the learning rates `lr_beta` and `lr_var`.
+Each network is stepped by the optimizer of its `Embedding`, AdamW [@loshchilov_decoupled_2019] by default, and $\beta$ and the variances by Adam [@kingma_adam_2017], at the learning rates `lr_beta` and `lr_var` (see [Optimizers and schedulers](#optimizers-and-schedulers)).
 A network shared by several terms is embedded once per minibatch: its gradient gathers the contributions of all of them, and its optimizer steps once.
 
 `model.loss` records the mean minibatch loss of each epoch. It scales with $n_B$: curves are comparable at fixed `batch_size` only.
+
+## Optimizers and schedulers
+
+| Group                                    | Parameters                    | Optimizer   | Weight decay | Learning rate | Scheduler   |
+|------------------------------------------|-------------------------------|-------------|--------------|---------------|-------------|
+| Network weights                          | Tensors of dimension $\geq 2$ | `optimizer` of the `Embedding` | `optimizer` | `optimizer` | `scheduler` of the `Embedding` |
+| Network biases, normalization parameters | Vectors                       | `optimizer` of the `Embedding` | 0           | `optimizer` | `scheduler` of the `Embedding` |
+| Fixed effects                            | $\beta$                       | Adam        | 0            | `lr_beta`     | `scheduler` of `.fit()` |
+| Variances                                | $\log \sigma^2$, or the parameters of $S_j$ | Adam | 0       | `lr_var`      | `scheduler` of `.fit()` |
+
+### Networks
+
+- **Optimizer**, required: a `torch.optim` optimizer, LBFGS excepted, as a factory called on the two parameter groups of the network. Defaults to `partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)`.
+- **Scheduler**, optional: a `torch.optim.lr_scheduler`, as a factory called on the optimizer. Defaults to `None`: constant learning rate.
+- **Setting**: at the construction of the [`Embedding`](build.qmd#embeddings), or afterwards by its name, with `model.set_optimizer()` and `model.set_scheduler()`; `model.get_optimizer()` and `model.get_scheduler()` return them.
+
+```python
+model.set_optimizer(
+    "geno",
+    partial(
+        torch.optim.AdamW,
+        lr = 1e-4,
+        weight_decay = 1e-1
+    )
+)
+
+model.set_scheduler(
+    "geno",
+    partial(
+        torch.optim.lr_scheduler.CosineAnnealingLR,
+        T_max = 1000
+    )
+)
+```
+
+### Fixed effects and variances
+
+- **Optimizer**: Adam, at the learning rates `lr_beta` and `lr_var` of `.fit()`. The variances are log-parameterized.
+- **Scheduler**, optional: the `scheduler` argument of `.fit()`. It scales both groups together, from `lr_beta` and `lr_var`.
+
+### Behavior
+
+- **Creation**: optimizers and schedulers are created anew at each `.fit()`, as $\beta$ and the variances are [initialized](#initialization) anew. The networks keep their weights.
+- **Step**: each scheduler steps once per epoch, after the last minibatch. Scheduler lengths, *e.g.* `T_max` or `step_size`, count epochs.
+- **`ReduceLROnPlateau`**: steps on the validation score of the epoch, or on its mean minibatch loss without `validation`.
+- **Polish**: the schedulers do not act on it.
 
 ## Validation and early stopping
 
@@ -107,7 +177,7 @@ Without `validation`, training runs `n_epoch` epochs and the last state is kept.
 
 Each validation solves a dense system in $V_t$, of size $n_t \times n_t$.
 
-The held-out rows, the minibatches, the network initializations and the dropout masks all draw from the PyTorch generator: `torch.manual_seed` makes the training reproducible.
+The held-out rows, the minibatches and the dropout masks all draw from the PyTorch generator: `torch.manual_seed` makes the training reproducible, the network weights being set beforehand (see [Neural weights](#neural-weights)).
 
 ## Polish
 
@@ -118,14 +188,15 @@ The model is then a linear mixed model with a known random design, refitted by [
 - [HMME](https://ai-for-genome-interpretation-lab.github.io/pyreml/training.html#hmme) gives the BLUE of $\beta$, the BLUP of every $u_j$, and their error variances.
 
 Both run in double, as the whole mixed model.
-With `full_REML = False`, the REML is skipped: HMME runs on the variances at the end of training (restored state with `validation`).
+
+With `full_REML = False`, the REML is skipped: HMME runs on the variances at the end of training.
 
 ## Monitoring
 
 | Accessor                    | Content                                                    |
 |-----------------------------|------------------------------------------------------------|
-| `model.loss`                | Mean minibatch REML loss at each epoch.                    |
-| `model.score`               | Validation MSE at each epoch, standardized with several responses, empty without `validation`. |
+| `model.loss`                | Mean minibatch REML loss at each epoch of the last `.fit()`. |
+| `model.score`               | Validation MSE at each epoch of the last `.fit()`, standardized with several responses, empty without `validation`. |
 | `model.opti_REML.loss`      | REML loss at each iteration of the polish.                 |
 | `model.convergence`         | Whether the polish met the convergence criterion, `None` with `full_REML = False`. |
 | `model.opti_REML.duration`  | Wall-clock time of the polish, in seconds.                 |
