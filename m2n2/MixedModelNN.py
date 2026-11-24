@@ -1,4 +1,5 @@
 import copy
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -134,6 +135,11 @@ class MixedModelNN(MixedModel):
                 {"params": mm.params, "lr": lr_var},
             ])
         ]
+        mm.schedulers = [
+            factory(optimizer)
+            for factory, optimizer in zip([emb.scheduler for emb in embedding.values()] + [scheduler], mm.optimizers)
+            if factory is not None
+        ]
 
         mm.loss = []
         mm.score = []
@@ -260,6 +266,13 @@ class MixedModelNN(MixedModel):
                         self.beta.detach().clone(),
                         [p.detach().clone() for p in self.params],
                     )
+
+            # once per epoch; ReduceLROnPlateau on the validation score, or on the loss without validation
+            for scheduler in self.schedulers:
+                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    scheduler.step(self.score[-1] if n_valid else self.loss[-1])
+                else:
+                    scheduler.step()
 
             if verbose:
                 print(message)
