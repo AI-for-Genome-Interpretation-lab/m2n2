@@ -2,24 +2,17 @@
 title: "Building models"
 ---
 
-[m2n2]{.m2n2} builds a model with `MixedModelNN.from_dataframe()`, from a [pandas](https://pandas.pydata.org/) DataFrame and one or several [PyTorch](https://pytorch.org/) networks.
+[m2n2]{.m2n2} builds a model with the `MixedModelNN` constructor, from a [pandas](https://pandas.pydata.org/) DataFrame and one or several [PyTorch](https://pytorch.org/) networks.
 
-## The from_dataframe constructor
+## Build a [m2n2]{.m2n2} model
 
 ```python
-model = MixedModelNN.from_dataframe(
+model = MixedModelNN(
     data      = data,
     response  = "DTF1",
     fixed     = "1 + country",
     embedding = {
-        "geno": Embedding(
-            network,
-            optimizer = partial(
-                torch.optim.AdamW,
-                lr = 1e-3,
-                weight_decay = 1e-1
-            )
-        ),
+        "geno": Embedding(network),
     },
     random = [
         RandomNN(
@@ -31,8 +24,6 @@ model = MixedModelNN.from_dataframe(
         ),
     ],
     residual  = Residual(),
-    lr_beta   = 1e-2,
-    lr_var    = 1e-2,
 )
 
 model.fit()
@@ -46,13 +37,16 @@ model.fit()
 | `embedding` | The networks, as a dictionary of named [`Embedding`](#embeddings).                             |
 | `random`    | The random effects, a list of [`RandomNN`](#neural-random-effects) and [pyreml]{.pyreml} [`Random`](#other-random-effects) terms. |
 | `residual`  | The residual, a [pyreml]{.pyreml} [`Residual`](#residual). Defaults to `Residual()`: $\sigma^2_R I$. |
-| `lr_beta`   | Learning rate of $\beta$. Defaults to 1e-3.                                                    |
-| `lr_var`    | Learning rate of the variances. Defaults to 1e-3.                                              |
-| `scheduler` | A `torch.optim.lr_scheduler` factory, called on the optimizer of $\beta$ and the variances (see [Optimizers](#optimizers)). Defaults to `None`: constant learning rates. |
 
 ## Embeddings
 
-An `Embedding` wraps a network, its optimizer and, optionally, its learning-rate scheduler:
+An `Embedding` wraps a network:
+
+```python
+Embedding(network)
+```
+
+It also carries the training settings of the network, its optimizer and its learning-rate scheduler, which can be passed at construction:
 
 ```python
 Embedding(
@@ -65,11 +59,13 @@ Embedding(
 | Argument    | Meaning                                                                                       |
 |-------------|-----------------------------------------------------------------------------------------------|
 | `network`   | The network $\nu$, an `nn.Module` returning the embeddings (see [the network](#the-network)). |
-| `optimizer` | A `torch.optim` optimizer, LBFGS excepted, as a factory of the parameter groups. Defaults to `partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)`. |
-| `scheduler` | A `torch.optim.lr_scheduler` factory, called on the optimizer of the network (see [Optimizers](#optimizers)). Defaults to `None`: constant learning rate. |
+| `optimizer` | Factory of the optimizer of the network. Defaults to `partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)`. |
+| `scheduler` | Factory of the learning-rate scheduler of the network. Defaults to `None`: constant learning rate. |
+
+Both can also be set or changed after construction, by `model.set_optimizer()` and `model.set_scheduler()`: see [Optimizers and schedulers](training.qmd#optimizers-and-schedulers).
 
 Its name in `embedding` is the handle by which the random effects refer to it.
-Several random effects can share the same embedding: the network is then embedded once per minibatch, and stepped once by its optimizer and its scheduler.
+Several random effects can share the same embedding: the network is then embedded once per minibatch, and stepped once by its optimizer.
 
 ## The network
 
@@ -86,13 +82,19 @@ class Network(nn.Module):
     def __init__(self, z):
         super().__init__()
         self.register_buffer("z", z)
-        self.body = nn.Sequential(...)
+        self.body = nn.Sequential(
+            nn.Dropout(0.1), nn.Linear(z.shape[1], 256),
+            nn.BatchNorm1d(256), nn.GELU(),
+            nn.Dropout(0.5), nn.Linear(256, 128),
+            nn.BatchNorm1d(128), nn.GELU(),
+            nn.Dropout(0.5), nn.Linear(128, 64),
+        )
 
     def forward(self, rows=None):
         return self.body(self.z if rows is None else self.z[rows])
 ```
 
-Different embeddings can read the same features, or different ones, *e.g.* SNPs and gene expressions.
+Different embeddings can read the same features, or different ones.
 
 The embeddings are projected on the unit sphere before entering the mixed model (see [Deep kernel](deep_kernel.qmd)).
 Dropout and BatchNorm belong to the network: [m2n2]{.m2n2} switches it to `train()` mode for the gradient steps, and to `eval()` mode for validation and prediction.
@@ -128,19 +130,6 @@ Without `group`, $Z_j = Z$: the effects $u_j$ are shared by all individuals.
 With `group`, each group receives its own effects: combined with a general term on the same embedding, they capture what is specific to the group (see [Deep kernel](deep_kernel.qmd)).
 The terms are independent: several groupings, crossed or nested, are as many terms.
 
-## Other random effects
-
-Any [pyreml]{.pyreml} `Random` term, *e.g.* a pedigree or an environmental effect, can be added to `random`.
-It follows the [pyreml specification system](https://ai-for-genome-interpretation-lab.github.io/pyreml/building_models.html), and its design is fixed during training.
-
-## Residual
-
-The residual is a [pyreml]{.pyreml} `Residual`, `Residual()` by default: $r \sim N(0, \sigma^2_R I)$.
-Its `left_hand` structures the covariance across the responses of an individual, and its `right_hand` the covariance across the observations, *e.g.* `"het"` for heterogeneous variances (see [pyreml variance structures](https://ai-for-genome-interpretation-lab.github.io/pyreml/variance_structures.html)).
-The coordinate kernels (`eucl`, `ar_iso`, `ar_ani`), which lay the residual on a grid rather than on the observations, are not supported.
-
-After `.fit()`, `model.residual` carries its [pyreml]{.pyreml} accessors: `.variance`, `.residuals` and `.table` of the labelled observations.
-
 ## Several responses
 
 With a list of $m$ responses, `data` keeps one row per individual, and $y$ stacks the observed responses, response by response, as in [pyreml]{.pyreml}.
@@ -157,26 +146,6 @@ $S_j$ carries the covariance of the term across the responses: `"iid"` gives the
 - `group` must be qualitative and complete: numeric codes are to be cast to `str`.
 
 The random design $[Z_1 \mid Z_2 \mid \dots]$ has $m \sum_j q_j d_j$ columns over the `RandomNN` terms, plus those of the `Random` terms.
-
-## Optimizers
-
-All variances are log-parameterized, and initialized by `.fit()` (see [Initialization](training.qmd#initialization)).
-The optimizer of each embedding is called on two parameter groups, and $\beta$ and the variances are stepped by Adam:
-
-| Group                                    | Parameters                    | Optimizer   | Weight decay | Learning rate | Scheduler   |
-|------------------------------------------|-------------------------------|-------------|--------------|---------------|-------------|
-| Network weights                          | Tensors of dimension $\geq 2$ | `optimizer` | `optimizer`  | `optimizer`   | `Embedding.scheduler` |
-| Network biases, normalization parameters | Vectors                       | `optimizer` | 0            | `optimizer`   | `Embedding.scheduler` |
-| Fixed effects                            | $\beta$                       | Adam        | 0            | `lr_beta`     | `scheduler` |
-| Variances                                | $\log \sigma^2$, or the parameters of $S_j$ | Adam | 0       | `lr_var`      | `scheduler` |
-
-A scheduler is given as a factory, called on its optimizer, *e.g.*:
-
-```python
-scheduler = partial(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=1000)
-```
-
-Each scheduler drives one optimizer: the one of its `Embedding`, or, for the `scheduler` of `from_dataframe()`, the Adam of $\beta$ and the variances, whose two groups are scaled together from their own initial rates `lr_beta` and `lr_var`.
 
 ## The fitted model
 
@@ -204,4 +173,4 @@ Each `RandomNN` term exposes:
 | `.pca`                         | PCA of the embeddings `"Z"` and of the weighted embeddings `"Z*u"`, $Z \odot \hat u_{j,k(i)}$, with $k(i)$ the group of individual $i$: `coords`, `inertia`, `eigvec` per embedding. With several responses, `"Z*u"` is a dictionary by response. |
 | `.plot(plan=(0, 1), group_by=None, response=None)` | Individual projections on the principal plan `plan`, colored by `group_by`, a qualitative column of `data`. Defaults to the term's `group`, monochrome without it. `response` selects the weighted embeddings, the first response by default. |
 
-The `Random` terms expose their [pyreml]{.pyreml} accessors.
+The `Random` and `Residual` terms expose their [pyreml]{.pyreml} accessors.

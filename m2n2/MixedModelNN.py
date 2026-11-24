@@ -114,34 +114,14 @@ class MixedModelNN(MixedModel):
         }
         self.migrate(torch.double)
 
-        self.optimizers = [
-            emb.optimizer([
-                {"params": # network weights (matrices, kernels): shrunk
-                    [p for p in emb.network.parameters() if p.ndim >= 2],
-                },
-                {"params": # network biases and normalization parameters (vectors): free
-                    [p for p in emb.network.parameters() if p.ndim < 2],
-                    "weight_decay": 0.0,
-                },
-            ])
-            for emb in embedding.values()
-        ] + [
-            torch.optim.Adam([
-                {"params": [self.beta], "lr": lr_beta},
-                {"params": self.params, "lr": lr_var},
-            ])
-        ]
-        self.schedulers = [
-            factory(optimizer)
-            for factory, optimizer in zip([emb.scheduler for emb in embedding.values()] + [scheduler], self.optimizers)
-            if factory is not None
-        ]
-
         self.loss = []
         self.score = []
 
     def reset(self, embedding: str, seed: int = 42):
         self.embedding[embedding].reset(seed=seed)
+
+    def load(self, embedding: str, weights: str):
+        self.embedding[embedding].load(weights)
 
     def set_optimizer(self, embedding: str, optimizer: Callable):
         self.embedding[embedding].optimizer = optimizer
@@ -196,6 +176,11 @@ class MixedModelNN(MixedModel):
         the MSE of their BLUP from the training ones, standardized by the variance of each response with
         several responses; the best state is restored at the end, and the training stops after `patience`
         epochs without improvement (never if patience is None).
+        lr_beta, lr_var: learning rates of beta and of the variances, stepped by Adam.
+        scheduler: factory of the learning-rate scheduler of beta and the variances, called on their Adam
+        (None = constant learning rates). The networks are stepped by the optimizer and the scheduler of
+        their Embedding. Optimizers and schedulers are created anew at each fit; the schedulers step once
+        per epoch, ReduceLROnPlateau on the validation score, or on the loss without validation.
         """
         # initialization: beta and the variances of the Random terms and of the residual by pyreml,
         # without the RandomNN terms (full_REML), or by OLS and their pyreml initial values
@@ -207,6 +192,30 @@ class MixedModelNN(MixedModel):
         for term in self.random:
             if isinstance(term, RandomNN):
                 term.log_S.data.copy_(term.log_S0)
+
+        # fresh optimizers and schedulers, as beta and the variances
+        self.optimizers = [
+            emb.optimizer([
+                {"params": # network weights (matrices, kernels): shrunk
+                    [p for p in emb.network.parameters() if p.ndim >= 2],
+                },
+                {"params": # network biases and normalization parameters (vectors): free
+                    [p for p in emb.network.parameters() if p.ndim < 2],
+                    "weight_decay": 0.0,
+                },
+            ])
+            for emb in self.embedding.values()
+        ] + [
+            torch.optim.Adam([
+                {"params": [self.beta], "lr": lr_beta},
+                {"params": self.params, "lr": lr_var},
+            ])
+        ]
+        self.schedulers = [
+            factory(optimizer)
+            for factory, optimizer in zip([emb.scheduler for emb in self.embedding.values()] + [scheduler], self.optimizers)
+            if factory is not None
+        ]
 
         # full labelled data; minibatches swap _y, _X, _Z, n, w_grid, beta and p, restored after each epoch
         y, X, n, w_grid, beta_full, p = self._y, self._X, self.n, self.w_grid, self.beta, self.p

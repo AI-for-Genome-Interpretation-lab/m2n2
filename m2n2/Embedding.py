@@ -43,3 +43,10 @@ class Embedding:
             for module in self.network.modules():
                 if hasattr(module, "reset_parameters"):
                     module.reset_parameters()
+
+    def load(self, weights: str):
+        """
+        Loads the weights of the network in place, from a state_dict saved by torch.save, e.g. pretrained
+        ones. The state_dict must match the network, buffers included.
+        """
+        self.network.load_state_dict(torch.load(weights, map_location="cpu"))
