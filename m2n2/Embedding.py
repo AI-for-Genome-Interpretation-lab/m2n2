@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 from functools import partial
 from typing import Callable
 
@@ -6,29 +5,32 @@ import torch
 import torch.nn as nn
 
 
-@dataclass
 class Embedding:
     """
-    A network, built from the network alone. Its training settings are attributes, set after
-    construction and read by fit: optimizer, the factory of its optimizer, called on the parameter
-    groups of the network, and scheduler, the factory of its learning-rate scheduler, called on
-    that optimizer (None = constant learning rate).
+    A network and its training settings, read by fit: optimizer, the factory of its optimizer,
+    called on the parameter groups of the network, and scheduler, the factory of its learning-rate
+    scheduler, called on that optimizer (None = constant learning rate). They are set at construction,
+    or later by MixedModelNN.set_optimizer and set_scheduler.
 
     network() must return one embedding per row of data, in the same order: aligning the two
     is the caller's responsibility. network(rows), with rows a boolean mask over the rows of
     data, must return the embeddings of the selected rows only: training feeds the labelled
     rows alone, so that batch statistics (e.g. BatchNorm) never see the others.
     """
-    network: nn.Module
-    optimizer: Callable = field(
-        default = partial(
+
+    def __init__(
+        self,
+        network: nn.Module,
+        optimizer: Callable = partial(
             torch.optim.AdamW,
             lr = 1e-3,
             weight_decay = 1e-1
         ),
-        init = False,
-    )
-    scheduler: Callable | None = field(default=None, init=False)
+        scheduler: Callable | None = None,
+    ):
+        self.network = network
+        self.optimizer = optimizer
+        self.scheduler = scheduler
 
     def reset(self, seed: int = 42):
         """
