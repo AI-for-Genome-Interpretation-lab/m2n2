@@ -22,6 +22,12 @@ Install **m2n2** with `pip`:
 pip install m2n2
 ```
 
+## Illustrative example
+
+In this example, the phenology (day to flowering) of several populations of *Arabidopsis thaliana* is predicted from genomic markers. The same embedding space is used both for the shared genotype-to-phenotype mapping across populations (left) and for the distinction of a complex, difficult to interpret, epistatic interference between each group and the general mapping (right). Getting rid of the later aims at improving the identification of the former. More information in the [documentation](https://ai-for-genome-interpretation-lab.github.io/m2n2/deep_kernel.html).
+
+<img width="1022" height="489" alt="embedding space" src="https://github.com/user-attachments/assets/5c16fb08-3b18-425e-9aa4-c208090ef65d" />
+
 ## The model
 
 **m2n2** fits a linear mixed model built upon the `PyTorch` neural network $\nu$ of parameters $\theta$:
