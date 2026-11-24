@@ -4,7 +4,7 @@ title: "Training models"
 
 [m2n2]{.m2n2} whole training pipeline is:
 
-1. [Initialization](#initialization) of $\beta$ and all non-`RandomNN` variances.
+1. [Initialization](#initialization) of $\beta$ and the variances.
 2. [minibatches](#minibatches) gradient descent on the [loss](#loss-function) of the network parameters, $\beta$ and all variances.
 3. [Validation](#validation-and-early-stopping) at each epoch, early stopping and restoration of the best state.
 4. [Polish](#polish): REML and HMME with the networks frozen.
@@ -15,7 +15,7 @@ title: "Training models"
 model.fit(
     n_epoch    = 1000,
     batch_size = None,
-    validation = 0.1,
+    validation = 0.2,
     patience   = 50,
     verbose    = True,
     full_REML  = True,
@@ -111,7 +111,6 @@ A network shared by several terms is embedded once per minibatch: its gradient g
 
 ## Optimizers and schedulers
 
-
 | Group                                    | Parameters                    | Optimizer   | Weight decay | Learning rate | Scheduler   |
 |------------------------------------------|-------------------------------|-------------|--------------|---------------|-------------|
 | Network weights                          | Tensors of dimension $\geq 2$ | `optimizer` of the `Embedding` | `optimizer` | `optimizer` | `scheduler` of the `Embedding` |
@@ -144,11 +143,17 @@ model.set_scheduler(
 )
 ```
 
-### Fixed effects and variances:
+### Fixed effects and variances
 
 - **Optimizer**: Adam, at the learning rates `lr_beta` and `lr_var` of `.fit()`. The variances are log-parameterized.
 - **Scheduler**, optional: the `scheduler` argument of `.fit()`. It scales both groups together, from `lr_beta` and `lr_var`.
 
+### Behavior
+
+- **Creation**: optimizers and schedulers are created anew at each `.fit()`, as $\beta$ and the variances are [initialized](#initialization) anew. The networks keep their weights.
+- **Step**: each scheduler steps once per epoch, after the last minibatch. Scheduler lengths, *e.g.* `T_max` or `step_size`, count epochs.
+- **`ReduceLROnPlateau`**: steps on the validation score of the epoch, or on its mean minibatch loss without `validation`.
+- **Polish**: the schedulers do not act on it.
 
 ## Validation and early stopping
 
@@ -172,7 +177,7 @@ Without `validation`, training runs `n_epoch` epochs and the last state is kept.
 
 Each validation solves a dense system in $V_t$, of size $n_t \times n_t$.
 
-The held-out rows, the minibatches, the network initializations and the dropout masks all draw from the PyTorch generator: `torch.manual_seed` makes the training reproducible.
+The held-out rows, the minibatches and the dropout masks all draw from the PyTorch generator: `torch.manual_seed` makes the training reproducible, the network weights being set beforehand (see [Neural weights](#neural-weights)).
 
 ## Polish
 
@@ -190,8 +195,8 @@ With `full_REML = False`, the REML is skipped: HMME runs on the variances at the
 
 | Accessor                    | Content                                                    |
 |-----------------------------|------------------------------------------------------------|
-| `model.loss`                | Mean minibatch REML loss at each epoch.                    |
-| `model.score`               | Validation MSE at each epoch, standardized with several responses, empty without `validation`. |
+| `model.loss`                | Mean minibatch REML loss at each epoch of the last `.fit()`. |
+| `model.score`               | Validation MSE at each epoch of the last `.fit()`, standardized with several responses, empty without `validation`. |
 | `model.opti_REML.loss`      | REML loss at each iteration of the polish.                 |
 | `model.convergence`         | Whether the polish met the convergence criterion, `None` with `full_REML = False`. |
 | `model.opti_REML.duration`  | Wall-clock time of the polish, in seconds.                 |

@@ -17,7 +17,7 @@ schedule = partial(torch.optim.lr_scheduler.LambdaLR, lr_lambda=lambda e: e / 20
 @pytest.fixture(scope="module", params=["general", "network", "both"])
 def model(request):
     torch.manual_seed(42)
-    return MixedModelNN.from_dataframe(
+    return MixedModelNN(
         data,
         response="DTF1",
         fixed="1 + country",
@@ -29,10 +29,16 @@ def model(request):
             ),
         },
         random=[RandomNN(embedding="geno")],
+    ).fit(
+        n_epoch=70,
+        batch_size=256,
+        validation=None,
+        verbose=False,
+        full_REML=False,
         lr_beta=LR_BETA,
         lr_var=LR_VAR,
         scheduler=schedule if request.param in ("general", "both") else None,
-    ).fit(n_epoch=70, batch_size=256, validation=None, verbose=False, full_REML=False), request.param
+    ), request.param
 
 
 def test_scheduler(model):

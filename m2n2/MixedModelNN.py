@@ -21,8 +21,8 @@ class MixedModelNN(MixedModel):
     trained jointly with beta and the variances on the REML loss.
 
     The model is first built by pyreml without the RandomNN terms: it designs the Random terms and
-    the residual, and is kept to initialize beta and their variances at fit. It is then rebuilt
-    by the low-level constructor, with varmeth and varmeth_inv stacking every term, in the order of
+    the residual, and is kept to initialize beta and their variances at fit. The model itself
+    is then built by the low-level constructor of pyreml, with varmeth and varmeth_inv stacking every term, in the order of
     `random`. With several responses, y stacks them response by response, as in pyreml: each
     observation is a (response, individual) pair. Individuals with no response are left out of the
     fit, but the RandomNN terms still predict them. The mixed model runs in double, on the device of the networks output; the networks
@@ -114,9 +114,6 @@ class MixedModelNN(MixedModel):
         }
         self.migrate(torch.double)
 
-        self.loss = []
-        self.score = []
-
     def reset(self, embedding: str, seed: int = 42):
         self.embedding[embedding].reset(seed=seed)
 
@@ -193,7 +190,9 @@ class MixedModelNN(MixedModel):
             if isinstance(term, RandomNN):
                 term.log_S.data.copy_(term.log_S0)
 
-        # fresh optimizers and schedulers, as beta and the variances
+        # fresh optimizers, schedulers and training curves, as beta and the variances
+        self.loss = []
+        self.score = []
         self.optimizers = [
             emb.optimizer([
                 {"params": # network weights (matrices, kernels): shrunk

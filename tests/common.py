@@ -53,7 +53,7 @@ class Embedder(nn.Module):
 
 def fit(response, random, fixed="1", residual=None):
     torch.manual_seed(42)
-    return MixedModelNN.from_dataframe(
+    return MixedModelNN(
         data.assign(**{trait: data[trait].where(~test) for trait in TRAITS}),
         response=response,
         fixed=fixed,
@@ -62,9 +62,7 @@ def fit(response, random, fixed="1", residual=None):
         },
         random=random,
         residual=Residual() if residual is None else residual,
-        lr_beta=1e-2,
-        lr_var=1e-2,
-    ).fit(n_epoch=1000, batch_size=256, validation=0.2, patience=50, verbose=False)
+    ).fit(n_epoch=1000, batch_size=256, validation=0.2, patience=50, verbose=False, lr_beta=1e-2, lr_var=1e-2)
 
 
 def correlation(prediction, trait, rows):
