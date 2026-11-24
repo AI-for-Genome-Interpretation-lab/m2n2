@@ -39,6 +39,7 @@ class MixedModelNN(MixedModel):
         residual: Residual | None = None,
         lr_beta: float = 1e-3,
         lr_var: float = 1e-3,
+        scheduler: Callable | None = None,
     ):
         data = data.reset_index(drop=True)
         responses = [response] if isinstance(response, str) else list(response)

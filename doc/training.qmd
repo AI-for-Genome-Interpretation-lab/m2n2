@@ -83,6 +83,10 @@ The gradient flows by autograd through the variances, $\beta$ and the networks.
 Each network is stepped by the optimizer of its `Embedding`, AdamW [@loshchilov_decoupled_2019] by default, and $\beta$ and the variances by Adam [@kingma_adam_2017], at the learning rates `lr_beta` and `lr_var`.
 A network shared by several terms is embedded once per minibatch: its gradient gathers the contributions of all of them, and its optimizer steps once.
 
+## Learning-rate schedulers
+
+The learning rates can be driven by `torch.optim.lr_scheduler` schedulers (see [Optimizers](build.qmd#optimizers)): the `scheduler` of each `Embedding` for its network, the `scheduler` of `from_dataframe()` for $\beta$ and the variances, both scaled together.
+
 `model.loss` records the mean minibatch loss of each epoch. It scales with $n_B$: curves are comparable at fixed `batch_size` only.
 
 ## Validation and early stopping

@@ -48,15 +48,17 @@ model.fit()
 | `residual`  | The residual, a [pyreml]{.pyreml} [`Residual`](#residual). Defaults to `Residual()`: $\sigma^2_R I$. |
 | `lr_beta`   | Learning rate of $\beta$. Defaults to 1e-3.                                                    |
 | `lr_var`    | Learning rate of the variances. Defaults to 1e-3.                                              |
+| `scheduler` | A `torch.optim.lr_scheduler` factory, called on the optimizer of $\beta$ and the variances (see [Optimizers](#optimizers)). Defaults to `None`: constant learning rates. |
 
 ## Embeddings
 
-An `Embedding` wraps a network and its optimizer:
+An `Embedding` wraps a network, its optimizer and, optionally, its learning-rate scheduler:
 
 ```python
 Embedding(
     network,
     optimizer = partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1),
+    scheduler = None,
 )
 ```
 
@@ -64,9 +66,10 @@ Embedding(
 |-------------|-----------------------------------------------------------------------------------------------|
 | `network`   | The network $\nu$, an `nn.Module` returning the embeddings (see [the network](#the-network)). |
 | `optimizer` | A `torch.optim` optimizer, LBFGS excepted, as a factory of the parameter groups. Defaults to `partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)`. |
+| `scheduler` | A `torch.optim.lr_scheduler` factory, called on the optimizer of the network (see [Optimizers](#optimizers)). Defaults to `None`: constant learning rate. |
 
 Its name in `embedding` is the handle by which the random effects refer to it.
-Several random effects can share the same embedding: the network is then embedded once per minibatch, and stepped once by its optimizer.
+Several random effects can share the same embedding: the network is then embedded once per minibatch, and stepped once by its optimizer and its scheduler.
 
 ## The network
 
@@ -160,12 +163,20 @@ The random design $[Z_1 \mid Z_2 \mid \dots]$ has $m \sum_j q_j d_j$ columns ove
 All variances are log-parameterized, and initialized by `.fit()` (see [Initialization](training.qmd#initialization)).
 The optimizer of each embedding is called on two parameter groups, and $\beta$ and the variances are stepped by Adam:
 
-| Group                                    | Parameters                    | Optimizer   | Weight decay | Learning rate |
-|------------------------------------------|-------------------------------|-------------|--------------|---------------|
-| Network weights                          | Tensors of dimension $\geq 2$ | `optimizer` | `optimizer`  | `optimizer`   |
-| Network biases, normalization parameters | Vectors                       | `optimizer` | 0            | `optimizer`   |
-| Fixed effects                            | $\beta$                       | Adam        | 0            | `lr_beta`     |
-| Variances                                | $\log \sigma^2$, or the parameters of $S_j$ | Adam | 0       | `lr_var`      |
+| Group                                    | Parameters                    | Optimizer   | Weight decay | Learning rate | Scheduler   |
+|------------------------------------------|-------------------------------|-------------|--------------|---------------|-------------|
+| Network weights                          | Tensors of dimension $\geq 2$ | `optimizer` | `optimizer`  | `optimizer`   | `Embedding.scheduler` |
+| Network biases, normalization parameters | Vectors                       | `optimizer` | 0            | `optimizer`   | `Embedding.scheduler` |
+| Fixed effects                            | $\beta$                       | Adam        | 0            | `lr_beta`     | `scheduler` |
+| Variances                                | $\log \sigma^2$, or the parameters of $S_j$ | Adam | 0       | `lr_var`      | `scheduler` |
+
+A scheduler is given as a factory, called on its optimizer, *e.g.*:
+
+```python
+scheduler = partial(torch.optim.lr_scheduler.CosineAnnealingLR, T_max=1000)
+```
+
+Each scheduler drives one optimizer: the one of its `Embedding`, or, for the `scheduler` of `from_dataframe()`, the Adam of $\beta$ and the variances, whose two groups are scaled together from their own initial rates `lr_beta` and `lr_var`.
 
 ## The fitted model
 

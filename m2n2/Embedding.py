@@ -18,3 +18,4 @@ class Embedding:
     """
     network: nn.Module
     optimizer: Callable = partial(torch.optim.AdamW, lr=1e-3, weight_decay=1e-1)
+    scheduler: Callable | None = None
